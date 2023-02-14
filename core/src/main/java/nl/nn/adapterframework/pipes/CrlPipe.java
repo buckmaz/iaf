@@ -29,14 +29,15 @@ import java.util.Iterator;
 import nl.nn.adapterframework.core.PipeLineSession;
 import nl.nn.adapterframework.core.PipeRunException;
 import nl.nn.adapterframework.core.PipeRunResult;
-import nl.nn.adapterframework.doc.IbisDoc;
+import nl.nn.adapterframework.doc.ElementType;
+import nl.nn.adapterframework.doc.ElementType.ElementTypes;
 import nl.nn.adapterframework.stream.Message;
 import nl.nn.adapterframework.util.XmlBuilder;
 
 /**
  * Pipe that reads a CRL from an input stream and transforms it to an XML.
  * The steam is closed after reading.
- * 
+ *
  * Example configuration:
  * <pre><code>
 	&lt;pipe
@@ -66,13 +67,14 @@ import nl.nn.adapterframework.util.XmlBuilder;
 		&gt;
 		&lt;forward name="success" path="EXIT" /&gt;
 	&lt;/pipe&gt;
- * <code></pre>
- * 
- * 
+ * </code></pre>
+ *
+ *
  * @author Miel Hoppenbrouwers
  * @author Jaco de Groot
  * @author Tom van der Heijden
  */
+@ElementType(ElementTypes.TRANSLATOR)
 public class CrlPipe extends FixedForwardPipe {
 	private String issuerSessionKey;
 
@@ -125,7 +127,7 @@ public class CrlPipe extends FixedForwardPipe {
 		return issuerSessionKey;
 	}
 
-	@IbisDoc({"name of the sessionkey that holds a stream to the certificate of the issuer who signed the crl. the steam is closed after reading", ""})
+	/** name of the sessionkey that holds a stream to the certificate of the issuer who signed the crl. the steam is closed after reading */
 	public void setIssuerSessionKey(String issuerSessionKey) {
 		this.issuerSessionKey = issuerSessionKey;
 	}

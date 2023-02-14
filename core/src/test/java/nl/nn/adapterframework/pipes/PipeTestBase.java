@@ -1,5 +1,12 @@
 package nl.nn.adapterframework.pipes;
 
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+
+import java.net.URL;
+
+import org.apache.commons.lang3.StringUtils;
+
 import nl.nn.adapterframework.configuration.ConfigurationException;
 import nl.nn.adapterframework.core.ConfiguredTestBase;
 import nl.nn.adapterframework.core.IPipe;
@@ -9,6 +16,8 @@ import nl.nn.adapterframework.core.PipeRunException;
 import nl.nn.adapterframework.core.PipeRunResult;
 import nl.nn.adapterframework.core.PipeStartException;
 import nl.nn.adapterframework.stream.Message;
+import nl.nn.adapterframework.stream.UrlMessage;
+import nl.nn.adapterframework.util.FilenameUtils;
 
 public abstract class PipeTestBase<P extends IPipe> extends ConfiguredTestBase {
 
@@ -60,12 +69,31 @@ public abstract class PipeTestBase<P extends IPipe> extends ConfiguredTestBase {
 	protected PipeRunResult doPipe(Message input) throws PipeRunException {
 		return doPipe(pipe, input, session);
 	}
-	protected PipeRunResult doPipe(P pipe, Message input, PipeLineSession session) throws PipeRunException {
-		return pipe.doPipe(input, session);
-	}
 
 	protected PipeRunResult doPipe(P pipe, Object input, PipeLineSession session) throws PipeRunException {
 		return doPipe(pipe, Message.asMessage(input), session);
 	}
+	protected PipeRunResult doPipe(P pipe, Message input, PipeLineSession session) throws PipeRunException {
+		session.computeIfAbsent(PipeLineSession.originalMessageKey, k -> input);
+		return pipe.doPipe(input, session);
+	}
 
+	/**
+	 * Retrieves a file from the test-classpath, with the pipe's classname as basepath.
+	 */
+	protected Message getResource(String resource) {
+		String base = pipe.getClass().getSimpleName();
+		if(StringUtils.isEmpty(base)) {
+			Class<?> superClass = pipe.getClass().getSuperclass();
+			if(superClass != null) {
+				base = superClass.getSimpleName();
+			}
+		}
+		assertTrue("unable to determine ["+pipe+"] name", StringUtils.isNotEmpty(base));
+		String relativeUrl = FilenameUtils.normalize("/Pipes/" + base + "/" + resource, true);
+
+		URL url = PipeTestBase.class.getResource(relativeUrl);
+		assertNotNull("unable to find resource ["+resource+"] in path ["+relativeUrl+"]", url);
+		return new UrlMessage(url);
+	}
 }

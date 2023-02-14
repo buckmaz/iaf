@@ -1,5 +1,5 @@
 /*
-   Copyright 2016-2018, 2020 Nationale-Nederlanden, 2021 WeAreFrank!
+   Copyright 2016-2018, 2020 Nationale-Nederlanden, 2021, 2022 WeAreFrank!
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -38,7 +38,6 @@ import nl.nn.adapterframework.core.ParameterException;
 import nl.nn.adapterframework.core.PipeForward;
 import nl.nn.adapterframework.core.PipeRunException;
 import nl.nn.adapterframework.core.PipeRunResult;
-import nl.nn.adapterframework.doc.IbisDoc;
 import nl.nn.adapterframework.http.HttpSender;
 import nl.nn.adapterframework.parameters.ParameterList;
 import nl.nn.adapterframework.soap.SoapWrapper;
@@ -55,9 +54,9 @@ import nl.nn.adapterframework.util.Misc;
  * @ff.parameter contentType		the Content-Type header to set in case httpResponse was specified
  * @ff.parameter contentDisposition	the Content-Disposition header to set in case httpResponse was specified
  * @ff.parameter redirectLocation	the redirect location to set in case httpResponse was specified
- * 
+ *
  * @ff.forward antiVirusFailed the virus checking indicates a problem with the message
- * 
+ *
  * @author Jaco de Groot
  */
 public class StreamPipe extends FixedForwardPipe {
@@ -95,7 +94,7 @@ public class StreamPipe extends FixedForwardPipe {
 			return message;
 		}
 	}
-	
+
 	@Override
 	public PipeRunResult doPipe(Message message, PipeLineSession session) throws PipeRunException {
 		Object result = message;
@@ -143,19 +142,19 @@ public class StreamPipe extends FixedForwardPipe {
 				inputStream = message.asInputStream();
 			}
 			if (httpResponse != null) {
-				HttpSender.streamResponseBody(inputStream, contentType, contentDisposition, httpResponse, log, getLogPrefix(session), redirectLocation);
+				HttpSender.streamResponseBody(inputStream, contentType, contentDisposition, httpResponse, log, "", redirectLocation);
 			} else if (httpRequest != null) {
 				StringBuilder partsString = new StringBuilder("<parts>");
 				String firstStringPart = null;
 				List<AntiVirusObject> antiVirusObjects = new ArrayList<AntiVirusObject>();
 				if (ServletFileUpload.isMultipartContent(httpRequest)) {
-					log.debug(getLogPrefix(session) + "request with content type [" + httpRequest.getContentType() + "] and length [" + httpRequest.getContentLength() + "] contains multipart content");
+					log.debug("request with content type [{}] and length [{}] contains multipart content", httpRequest.getContentType(), httpRequest.getContentLength());
 					DiskFileItemFactory diskFileItemFactory = new DiskFileItemFactory();
 					ServletFileUpload servletFileUpload = new ServletFileUpload(diskFileItemFactory);
 					List<FileItem> items = servletFileUpload.parseRequest(httpRequest);
 					int fileCounter = 0;
 					int stringCounter = 0;
-					log.debug(getLogPrefix(session) + "multipart request items size [" + items.size() + "]");
+					log.debug("multipart request items size [{}]", items.size());
 					String lastFoundFileName = null;
 					String lastFoundAVStatus = null;
 					String lastFoundAVMessage = null;
@@ -166,13 +165,13 @@ public class StreamPipe extends FixedForwardPipe {
 							String fieldValue = item.getString();
 							String fieldName = item.getFieldName();
 							if (isCheckAntiVirus() && fieldName.equalsIgnoreCase(getAntiVirusPartName())) {
-								log.debug(getLogPrefix(session) + "found antivirus status part [" + fieldName + "] with value [" + fieldValue + "]");
+								log.debug("found antivirus status part [{}] with value [{}]", fieldName, fieldValue);
 								lastFoundAVStatus = fieldValue;
 							} else if (isCheckAntiVirus() && fieldName.equalsIgnoreCase(getAntiVirusMessagePartName())) {
-								log.debug(getLogPrefix(session) + "found antivirus message part [" + fieldName + "] with value [" + fieldValue + "]");
+								log.debug("found antivirus message part [{}] with value [{}]", fieldName, fieldValue);
 								lastFoundAVMessage = fieldValue;
 							} else {
-								log.debug(getLogPrefix(session) + "found string part [" + fieldName + "] with value [" + fieldValue + "]");
+								log.debug("found string part [{}] with value [{}]", fieldName, fieldValue);
 								if (isExtractFirstStringPart() && firstStringPart == null) {
 									firstStringPart = fieldValue;
 								} else {
@@ -192,7 +191,7 @@ public class StreamPipe extends FixedForwardPipe {
 								lastFoundAVStatus = null;
 								lastFoundAVMessage = null;
 							}
-							log.debug(getLogPrefix(session) + "found file part [" + item.getName() + "]");
+							log.debug("found file part [{}]", item.getName());
 							String sessionKeyName = "part_file" + (++fileCounter > 1 ? fileCounter : "");
 							String fileName = FilenameUtils.getName(item.getName());
 							InputStream is = item.getInputStream();
@@ -211,7 +210,7 @@ public class StreamPipe extends FixedForwardPipe {
 						antiVirusObjects.add(new AntiVirusObject(lastFoundFileName, lastFoundAVStatus, lastFoundAVMessage));
 					}
 				} else {
-					log.debug(getLogPrefix(session) + "request with content type [" + httpRequest.getContentType() + "] and length [" + httpRequest.getContentLength() + "] does NOT contain multipart content");
+					log.debug("request with content type [{}] and length [{}] does NOT contain multipart content", httpRequest.getContentType(), httpRequest.getContentLength());
 				}
 				partsString.append("</parts>");
 				if (isExtractFirstStringPart()) {
@@ -227,7 +226,7 @@ public class StreamPipe extends FixedForwardPipe {
 							PipeForward antiVirusFailedForward = findForward(ANTIVIRUS_FAILED_FORWARD);
 							if (antiVirusFailedForward == null) {
 								throw new PipeRunException(this, errorMessage);
-							} 
+							}
 							if (antiVirusFailureAsSoapFault) {
 								errorMessage = createSoapFaultMessage(errorMessage).asString();
 							}
@@ -249,7 +248,7 @@ public class StreamPipe extends FixedForwardPipe {
 		}
 		return new PipeRunResult(getSuccessForward(), result);
 	}
-	
+
 	protected String adjustFirstStringPart(String firstStringPart, PipeLineSession session) throws PipeRunException {
 		if (firstStringPart == null) {
 			return "";
@@ -271,17 +270,22 @@ public class StreamPipe extends FixedForwardPipe {
 	}
 
 	private void addSessionKey(PipeLineSession session, String key, Object value, String name) {
-		String message = getLogPrefix(session) + "setting sessionKey [" + key + "] to ";
-		if (value instanceof InputStream) {
-			message = message + "input stream of file [" + name + "]";
-		} else {
-			message = message + "[" + value + "]";
+		if (log.isDebugEnabled()) {
+			String message = "setting sessionKey [" + key + "] to ";
+			if (value instanceof InputStream) {
+				message = message + "input stream of file [" + name + "]";
+			} else {
+				message = message + "[" + value + "]";
+			}
+			log.debug(message);
 		}
-		log.debug(message);
 		session.put(key, value);
 	}
 
-	@IbisDoc({"(only used for parameter <code>httprequest</code>) when true the first part is not put in a session key but returned to the pipeline (as the result of this pipe)", "false"})
+	/**
+	 * (only used for parameter <code>httprequest</code>) when true the first part is not put in a session key but returned to the pipeline (as the result of this pipe)
+	 * @ff.default false
+	 */
 	public void setExtractFirstStringPart(boolean b) {
 		extractFirstStringPart = b;
 	}
@@ -294,12 +298,18 @@ public class StreamPipe extends FixedForwardPipe {
 		return multipartXmlSessionKey;
 	}
 
-	@IbisDoc({"(only used when <code>extractfirststringpart=true</code>) the session key to put the xml in with info about the stored parts", "<code>multipartxml</code>"})
+	/**
+	 * (only used when <code>extractfirststringpart=true</code>) the session key to put the xml in with info about the stored parts
+	 * @ff.default <code>multipartxml</code>
+	 */
 	public void setMultipartXmlSessionKey(String multipartXmlSessionKey) {
 		this.multipartXmlSessionKey = multipartXmlSessionKey;
 	}
 
-	@IbisDoc({"(only used for parameter <code>httprequest</code>) when true parts are checked for antivirus scan returncode. these antivirus scan parts have been added by another application (so the antivirus scan is not performed in this pipe). for each file part an antivirus scan part have been added by this other application (directly after this file part)", "false"})
+	/**
+	 * (only used for parameter <code>httprequest</code>) when true parts are checked for antivirus scan returncode. these antivirus scan parts have been added by another application (so the antivirus scan is not performed in this pipe). for each file part an antivirus scan part have been added by this other application (directly after this file part)
+	 * @ff.default false
+	 */
 	public void setCheckAntiVirus(boolean b) {
 		checkAntiVirus = b;
 	}
@@ -312,7 +322,10 @@ public class StreamPipe extends FixedForwardPipe {
 		return antiVirusPartName;
 	}
 
-	@IbisDoc({"(only used for parameter <code>httprequest</code> and when <code>checkantivirus=true</code>) name of antivirus scan status parts", "<code>antivirus_rc</code>"})
+	/**
+	 * (only used for parameter <code>httprequest</code> and when <code>checkantivirus=true</code>) name of antivirus scan status parts
+	 * @ff.default <code>antivirus_rc</code>
+	 */
 	public void setAntiVirusPartName(String antiVirusPartName) {
 		this.antiVirusPartName = antiVirusPartName;
 	}
@@ -321,7 +334,10 @@ public class StreamPipe extends FixedForwardPipe {
 		return antiVirusMessagePartName;
 	}
 
-	@IbisDoc({"(only used for parameter <code>httprequest</code> and when <code>checkantivirus=true</code>) name of antivirus scan message parts", "<code>antivirus_msg</code>"})
+	/**
+	 * (only used for parameter <code>httprequest</code> and when <code>checkantivirus=true</code>) name of antivirus scan message parts
+	 * @ff.default <code>antivirus_msg</code>
+	 */
 	public void setAntiVirusMessagePartName(String antiVirusMessagePartName) {
 		this.antiVirusMessagePartName = antiVirusMessagePartName;
 	}
@@ -330,12 +346,18 @@ public class StreamPipe extends FixedForwardPipe {
 		return antiVirusPassedMessage;
 	}
 
-	@IbisDoc({"(only used for parameter <code>httprequest</code> and when <code>checkantivirus=true</code>) message of antivirus scan parts which indicates the antivirus scan passed", "<code>pass</code>"})
+	/**
+	 * (only used for parameter <code>httprequest</code> and when <code>checkantivirus=true</code>) message of antivirus scan parts which indicates the antivirus scan passed
+	 * @ff.default <code>pass</code>
+	 */
 	public void setAntiVirusPassedMessage(String antiVirusPassedMessage) {
 		this.antiVirusPassedMessage = antiVirusPassedMessage;
 	}
 
-	@IbisDoc({"(only used for parameter <code>httprequest</code> and when <code>checkantivirus=true</code>) when true and the antivirusfailed forward is specified and the antivirus scan did not pass, a soap fault is returned instead of only a plain error message", "false"})
+	/**
+	 * (only used for parameter <code>httprequest</code> and when <code>checkantivirus=true</code>) when true and the antivirusfailed forward is specified and the antivirus scan did not pass, a soap fault is returned instead of only a plain error message
+	 * @ff.default false
+	 */
 	public void setAntiVirusFailureAsSoapFault(boolean b) {
 		antiVirusFailureAsSoapFault = b;
 	}
@@ -344,7 +366,7 @@ public class StreamPipe extends FixedForwardPipe {
 		return antiVirusFailureAsSoapFault;
 	}
 
-	@IbisDoc({"(only used for parameter <code>httprequest</code> and when <code>checkantivirus=true</code>) if not empty and the antivirusfailed forward is specified and the antivirus scan did not pass, the error message (or soap fault) is stored in this session key and the first string part is returned to the pipeline", ""})
+	/** (only used for parameter <code>httprequest</code> and when <code>checkantivirus=true</code>) if not empty and the antivirusfailed forward is specified and the antivirus scan did not pass, the error message (or soap fault) is stored in this session key and the first string part is returned to the pipeline */
 	public void setAntiVirusFailureReasonSessionKey(String antiVirusFailureReasonSessionKey) {
 		this.antiVirusFailureReasonSessionKey = antiVirusFailureReasonSessionKey;
 	}

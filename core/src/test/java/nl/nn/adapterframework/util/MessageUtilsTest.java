@@ -1,11 +1,13 @@
 package nl.nn.adapterframework.util;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.net.URL;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.util.MimeType;
 
@@ -34,7 +36,58 @@ public class MessageUtilsTest {
 		Message message = new Message("test message");
 		String hash = MessageUtils.generateMD5Hash(message);
 		assertNotNull(hash);
-		assertEquals("hash should be the same", MessageUtils.generateMD5Hash(message), hash);
+		assertEquals(MessageUtils.generateMD5Hash(message), hash, "hash should be the same");
+		assertEquals("c72b9698fa1927e1dd12d3cf26ed84b2", hash);
+	}
+
+	@Test
+	public void testComputeMimeTypeWithISO8559Charset() throws Exception {
+		URL url = ClassUtils.getResourceURL("/Util/MessageUtils/iso-8859-1.txt");
+		Message message = new UrlMessage(url);
+		MimeType mimeType = MessageUtils.computeMimeType(message);
+		assertTrue(mimeType.toString().contains("text/plain"), "Content-Type header ["+mimeType.toString()+"] does not contain [text/plain]");
+		assertTrue(mimeType.toString().contains("charset=ISO-8859-1"), "Content-Type header ["+mimeType.toString()+"] does not contain correct [charset]");
+	}
+
+	@Test
+	public void testComputeMimeTypeBinaryContent() throws Exception {
+		URL url = ClassUtils.getResourceURL("/Logging/pdf-parsed-with-wrong-charset.pdf");
+		Message message = new UrlMessage(url);
+		MimeType mimeType = MessageUtils.computeMimeType(message);
+		assertTrue(mimeType.toString().contains("application/pdf"), "Content-Type header ["+mimeType.toString()+"] does not contain [application/pdf]");
+		assertNull(mimeType.getParameter("charset"), "Content-Type header ["+mimeType.toString()+"] may not contain a charset");
+	}
+
+	@Test
+	public void testComputeMimeTypeBinaryContentTwice() throws Exception {
+		URL url = ClassUtils.getResourceURL("/Logging/pdf-parsed-with-wrong-charset.pdf");
+		Message message = new UrlMessage(url);
+		MimeType mimeType = MessageUtils.computeMimeType(message);
+		MessageUtils.computeMimeType(message);
+		assertTrue(mimeType.toString().contains("application/pdf"), "Content-Type header ["+mimeType.toString()+"] does not contain [application/pdf]");
+		assertNull(mimeType.getParameter("charset"), "Content-Type header ["+mimeType.toString()+"] may not contain a charset");
+	}
+
+	@Test
+	public void testComputeMimeTypeWithISO8559CharsetAuto() throws Exception {
+		URL url = ClassUtils.getResourceURL("/Util/MessageUtils/iso-8859-1.txt");
+		Message message = new UrlMessage(url);
+		message.getContext().put(MessageContext.METADATA_CHARSET, "auto");
+
+		MimeType mimeType = MessageUtils.computeMimeType(message);
+		assertTrue(mimeType.toString().contains("text/plain"), "Content-Type header ["+mimeType.toString()+"] does not contain [text/plain]");
+		assertTrue(mimeType.toString().contains("charset=ISO-8859-1"), "Content-Type header ["+mimeType.toString()+"] does not contain correct [charset]");
+	}
+
+	@Test
+	public void testComputeMimeTypeWithISO8559CharsetUTF8() throws Exception {
+		URL url = ClassUtils.getResourceURL("/Util/MessageUtils/iso-8859-1.txt");
+		Message message = new UrlMessage(url);
+		message.getContext().put(MessageContext.METADATA_CHARSET, "utf-8"); //Is wrong, but it's been set, to must be used...
+
+		MimeType mimeType = MessageUtils.computeMimeType(message);
+		assertTrue(mimeType.toString().contains("text/plain"), "Content-Type header ["+mimeType.toString()+"] does not contain [text/plain]");
+		assertTrue(mimeType.toString().contains("charset=UTF-8"), "Content-Type header ["+mimeType.toString()+"] does not contain correct [charset]");
 	}
 
 	@Test
@@ -43,10 +96,10 @@ public class MessageUtilsTest {
 		assertNotNull(url);
 		Message message = new UrlMessage(url);
 		MessageDataSource ds = new MessageDataSource(message);
-		assertEquals("filename should be the same", "file.xml", ds.getName());
-		assertEquals("content-type should be the same", "application/xml", ds.getContentType()); //determined from file extension
-		assertEquals("contents should be the same", Misc.streamToString(url.openStream()), Misc.streamToString(ds.getInputStream()));
-		assertEquals("should be able to read the content twice", Misc.streamToString(url.openStream()), Misc.streamToString(ds.getInputStream()));
+		assertEquals("file.xml", ds.getName(), "filename should be the same");
+		assertEquals("application/xml", ds.getContentType(),"content-type should be the same"); //determined from file extension
+		assertEquals(Misc.streamToString(url.openStream()), Misc.streamToString(ds.getInputStream()), "contents should be the same");
+		assertEquals(Misc.streamToString(url.openStream()), Misc.streamToString(ds.getInputStream()), "should be able to read the content twice");
 	}
 
 	@Test
@@ -55,10 +108,10 @@ public class MessageUtilsTest {
 		assertNotNull(url);
 		Message message = new UrlMessage(url);
 		MessageDataSource ds = new MessageDataSource(Message.asMessage(message.asString()));
-		assertEquals("filename is unknown", null, ds.getName());
-		assertEquals("content-type cannot be determined", "application/octet-stream", ds.getContentType());
-		assertEquals("contents should be the same", Misc.streamToString(url.openStream()), Misc.streamToString(ds.getInputStream()));
-		assertEquals("should be able to read the content twice", Misc.streamToString(url.openStream()), Misc.streamToString(ds.getInputStream()));
+		assertEquals(null, ds.getName(), "filename is unknown");
+		assertEquals("application/octet-stream", ds.getContentType(), "content-type cannot be determined");
+		assertEquals(Misc.streamToString(url.openStream()), Misc.streamToString(ds.getInputStream()), "contents should be the same");
+		assertEquals(Misc.streamToString(url.openStream()), Misc.streamToString(ds.getInputStream()), "should be able to read the content twice");
 	}
 
 	@Test
@@ -67,9 +120,9 @@ public class MessageUtilsTest {
 		assertNotNull(url);
 		Message message = new UrlMessage(url);
 		MessageDataSource ds = new MessageDataSource(Message.asMessage(message.asString()));
-		assertEquals("filename is unknown", null, ds.getName());
-		assertEquals("content-type cannot be determined", "application/xml", ds.getContentType());
-		assertEquals("contents should be the same", Misc.streamToString(url.openStream()), Misc.streamToString(ds.getInputStream()));
-		assertEquals("should be able to read the content twice", Misc.streamToString(url.openStream()), Misc.streamToString(ds.getInputStream()));
+		assertEquals(null, ds.getName(), "filename is unknown");
+		assertEquals(ds.getContentType(),"application/xml", "content-type cannot be determined");
+		assertEquals(Misc.streamToString(ds.getInputStream()), Misc.streamToString(url.openStream()), "contents should be the same");
+		assertEquals(Misc.streamToString(url.openStream()), Misc.streamToString(ds.getInputStream()), "should be able to read the content twice");
 	}
 }

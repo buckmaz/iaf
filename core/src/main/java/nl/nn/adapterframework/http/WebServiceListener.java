@@ -36,8 +36,8 @@ import nl.nn.adapterframework.configuration.SuppressKeys;
 import nl.nn.adapterframework.core.HasPhysicalDestination;
 import nl.nn.adapterframework.core.ListenerException;
 import nl.nn.adapterframework.core.PipeLineSession;
-import nl.nn.adapterframework.doc.IbisDoc;
 import nl.nn.adapterframework.http.cxf.MessageProvider;
+import nl.nn.adapterframework.receivers.Receiver;
 import nl.nn.adapterframework.receivers.ServiceDispatcher;
 import nl.nn.adapterframework.soap.SoapWrapper;
 import nl.nn.adapterframework.stream.Message;
@@ -45,7 +45,7 @@ import nl.nn.adapterframework.util.AppConstants;
 import nl.nn.adapterframework.util.XmlBuilder;
 
 /**
- * Listener that allows a {@link nl.nn.adapterframework.receivers.Receiver} to receive messages as a SOAP webservice.
+ * Listener that allows a {@link Receiver} to receive messages as a SOAP webservice.
  * The structure of the SOAP messages is expressed in a WSDL (Web Services Description Language) document.
  * The Frank!Framework generates a WSDL document for each adapter that contains WebServiceListeners. You can
  * find these documents in the Frank!Console under main menu item Webservices, heading Available WSDL's.
@@ -175,7 +175,7 @@ public class WebServiceListener extends PushingListenerAdapter implements HasPhy
 	}
 
 	@Override
-	public Message processRequest(String correlationId, Message message, PipeLineSession session) throws ListenerException {
+	public Message processRequest(Message message, PipeLineSession session) throws ListenerException {
 		if (!attachmentSessionKeysList.isEmpty()) {
 			XmlBuilder xmlMultipart = new XmlBuilder("parts");
 			for(String attachmentSessionKey: attachmentSessionKeysList) {
@@ -193,7 +193,7 @@ public class WebServiceListener extends PushingListenerAdapter implements HasPhy
 			try {
 				if (log.isDebugEnabled()) log.debug(getLogPrefix()+"received SOAPMSG [" + message + "]");
 				Message request = soapWrapper.getBody(message);
-				Message result = super.processRequest(correlationId, request, session);
+				Message result = super.processRequest(request, session);
 
 				String soapNamespace = SOAPConstants.URI_NS_SOAP_1_1_ENVELOPE;
 				String soapProtocol = (String) session.get("soapProtocol");
@@ -208,7 +208,7 @@ public class WebServiceListener extends PushingListenerAdapter implements HasPhy
 			}
 		}
 
-		return super.processRequest(correlationId, message, session);
+		return super.processRequest(message, session);
 	}
 
 	public String getLogPrefix() {
@@ -226,7 +226,10 @@ public class WebServiceListener extends PushingListenerAdapter implements HasPhy
 		return "name ["+getName()+"]";
 	}
 
-	@IbisDoc({"If <code>true</code> the SOAP envelope is removed from received messages and a SOAP envelope is added to returned messages (SOAP envelope will not be visible to the pipeline)", "true"})
+	/**
+	 * If <code>true</code> the SOAP envelope is removed from received messages and a SOAP envelope is added to returned messages (SOAP envelope will not be visible to the pipeline)
+	 * @ff.default true
+	 */
 	public void setSoap(boolean b) {
 		soap = b;
 	}
@@ -239,7 +242,7 @@ public class WebServiceListener extends PushingListenerAdapter implements HasPhy
 	public void setServiceNamespaceURI(String string) {
 		serviceNamespaceURI = string;
 	}
-	
+
 	public void setApplicationFaultsAsSoapFaults(boolean b) {
 		setApplicationFaultsAsExceptions(b);
 	}
@@ -257,17 +260,20 @@ public class WebServiceListener extends PushingListenerAdapter implements HasPhy
 		}
 	}
 
-	@IbisDoc({ "If set, MTOM is enabled on the SOAP binding" })
+	/** If set, MTOM is enabled on the SOAP binding */
 	public void setMtomEnabled(boolean mtomEnabled) {
 		this.mtomEnabled = mtomEnabled;
 	}
 
-	@IbisDoc({ "Comma separated list of session keys to hold contents of attachments of the request" })
+	/** Comma separated list of session keys to hold contents of attachments of the request */
 	public void setAttachmentSessionKeys(String attachmentSessionKeys) {
 		this.attachmentSessionKeys = attachmentSessionKeys;
 	}
 
-	@IbisDoc({ "Key of session variable that holds the description (name, sessionKey, mimeType) of the parts present in the request. Only used if attachmentSessionKeys are specified", "multipartXml" })
+	/**
+	 * Key of session variable that holds the description (name, sessionKey, mimeType) of the parts present in the request. Only used if attachmentSessionKeys are specified
+	 * @ff.default multipartXml
+	 */
 	public void setMultipartXmlSessionKey(String multipartXmlSessionKey) {
 		this.multipartXmlSessionKey = multipartXmlSessionKey;
 	}

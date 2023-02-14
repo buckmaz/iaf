@@ -20,24 +20,33 @@ import java.util.List;
 import java.util.StringTokenizer;
 
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.util.MimeType;
+
+import com.nimbusds.jose.proc.SecurityContext;
 
 import lombok.Getter;
 import lombok.Setter;
-import com.nimbusds.jose.proc.SecurityContext;
 import nl.nn.adapterframework.configuration.ConfigurationException;
 import nl.nn.adapterframework.core.HasPhysicalDestination;
 import nl.nn.adapterframework.core.ListenerException;
 import nl.nn.adapterframework.core.PipeLineSession;
+import nl.nn.adapterframework.doc.Default;
+import nl.nn.adapterframework.http.HttpSenderBase;
 import nl.nn.adapterframework.http.PushingListenerAdapter;
 import nl.nn.adapterframework.jwt.JwtValidator;
+import nl.nn.adapterframework.lifecycle.ServletManager;
+import nl.nn.adapterframework.lifecycle.servlets.ServletConfiguration;
 import nl.nn.adapterframework.receivers.Receiver;
 import nl.nn.adapterframework.receivers.ReceiverAware;
 import nl.nn.adapterframework.stream.Message;
 import nl.nn.adapterframework.util.AppConstants;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+
 // TODO: Link to https://swagger.io/specification/ when anchors are supported by the Frank!Doc.
 /**
- * Listener that allows a {@link nl.nn.adapterframework.receivers.Receiver} to receive messages as a REST webservice.
+ * Listener that allows a {@link Receiver} to receive messages as a REST webservice.
  * Prepends the configured URI pattern with <code>api/</code>. The structure of REST messages is described
  * by OpenAPI specifications. The Frank!Framework generates an OpenAPI specification for each ApiListener and
  * also an OpenAPI specification for all ApiListeners in all configurations. You can
@@ -65,12 +74,13 @@ public class ApiListener extends PushingListenerAdapter implements HasPhysicalDe
 
 	private @Getter MediaTypes consumes = MediaTypes.ANY;
 	private @Getter MediaTypes produces = MediaTypes.ANY;
-	private @Getter ContentType producedContentType;
+	private @Getter MimeType contentType;
 	private String multipartBodyName = null;
 
 	private @Getter @Setter Receiver<String> receiver;
 
-	private @Getter String messageIdHeader = AppConstants.getInstance(getConfigurationClassLoader()).getString("apiListener.messageIdHeader", "Message-Id");
+	private @Getter String messageIdHeader = AppConstants.getInstance(getConfigurationClassLoader()).getString("apiListener.messageIdHeader", HttpSenderBase.MESSAGE_ID_HEADER);
+	private @Getter String correlationIdHeader = AppConstants.getInstance(getConfigurationClassLoader()).getString("apiListener.correlationIdHeader", HttpSenderBase.CORRELATION_ID_HEADER);
 	private @Getter String headerParams = null;
 	private @Getter String contentDispositionHeaderSessionKey;
 	private @Getter String charset = null;
@@ -81,9 +91,10 @@ public class ApiListener extends PushingListenerAdapter implements HasPhysicalDe
 	private @Getter String requiredClaims=null;
 	private @Getter String exactMatchClaims=null;
 	private @Getter String roleClaim;
+	private @Getter(onMethod = @__(@Override)) String physicalDestinationName = null;
 
 	private @Getter JwtValidator<SecurityContext> jwtValidator;
-	private String servletUrlMapping = AppConstants.getInstance().getString("servlet.ApiListenerServlet.urlMapping", "api");
+	private @Setter ServletManager servletManager;
 
 	public enum AuthenticationMethods {
 		NONE, COOKIE, HEADER, AUTHROLE, JWT;
@@ -108,10 +119,9 @@ public class ApiListener extends PushingListenerAdapter implements HasPhysicalDe
 			throw new ConfigurationException("jwksUrl cannot be empty");
 		}
 
-		producedContentType = new ContentType(produces);
-		if(charset != null) {
-			producedContentType.setCharset(charset);
-		}
+		contentType = produces.getMimeType(charset);
+
+		buildPhysicalDestinationName();
 	}
 
 	@Override
@@ -119,7 +129,7 @@ public class ApiListener extends PushingListenerAdapter implements HasPhysicalDe
 		ApiServiceDispatcher.getInstance().registerServiceClient(this);
 		if(getAuthenticationMethod() == AuthenticationMethods.JWT) {
 			try {
-				jwtValidator = new JwtValidator<SecurityContext>();
+				jwtValidator = new JwtValidator<>();
 				jwtValidator.init(getJwksUrl(), getRequiredIssuer());
 			} catch (Exception e) {
 				throw new ListenerException("unable to initialize jwtSecurityHandler", e);
@@ -135,8 +145,8 @@ public class ApiListener extends PushingListenerAdapter implements HasPhysicalDe
 	}
 
 	@Override
-	public Message processRequest(String correlationId, Message message, PipeLineSession requestContext) throws ListenerException {
-		Message result = super.processRequest(correlationId, message, requestContext);
+	public Message processRequest(Message message, PipeLineSession requestContext) throws ListenerException {
+		Message result = super.processRequest(message, requestContext);
 
 		//Return null when super.processRequest() returns an empty string
 		if(Message.isEmpty(result)) {
@@ -146,15 +156,29 @@ public class ApiListener extends PushingListenerAdapter implements HasPhysicalDe
 		return result;
 	}
 
-	@Override
-	public String getPhysicalDestinationName() {
-		String destinationName = "uriPattern: /"+servletUrlMapping+getUriPattern()+"; method: "+getMethod();
-		if(!MediaTypes.ANY.equals(consumes))
-			destinationName += "; consumes: "+getConsumes();
-		if(!MediaTypes.ANY.equals(produces))
-			destinationName += "; produces: "+getProduces();
+	private void buildPhysicalDestinationName() {
+		StringBuilder builder = new StringBuilder("uriPattern: ");
+		if(servletManager != null) {
+			ServletConfiguration config = servletManager.getServlet(ApiListenerServlet.class.getSimpleName());
+			if(config != null) {
+				if(config.getUrlMapping().size() == 1) {
+					builder.append(config.getUrlMapping().get(0));
+				} else {
+					builder.append(config.getUrlMapping());
+				}
+			}
+		}
+		builder.append(getUriPattern());
+		builder.append("; method: ").append(getMethod());
 
-		return destinationName;
+		if(!MediaTypes.ANY.equals(consumes)) {
+			builder.append("; consumes: ").append(getConsumes());
+		}
+		if(!MediaTypes.ANY.equals(produces)) {
+			builder.append("; produces: ").append(getProduces());
+		}
+
+		this.physicalDestinationName = builder.toString();
 	}
 
 	/**
@@ -170,21 +194,17 @@ public class ApiListener extends PushingListenerAdapter implements HasPhysicalDe
 	}
 
 	/**
-	 * Match request ContentType to consumes enum to see if the listener accepts the message
+	 * Match request 'Content-Type' (eg. on POST) to consumes enum to see if the listener accepts the message
 	 */
-	public boolean isConsumable(String contentType) {
-		return consumes.isConsumable(contentType);
+	public boolean isConsumable(@Nullable String contentType) {
+		return consumes.includes(contentType);
 	}
 
 	/**
-	 * Match accept header to produces enum to see if the client accepts the message
+	 * Match request 'Accept' header to produces enum to see if the client accepts the message
 	 */
-	public boolean accepts(String acceptHeader) {
-		return produces.equals(MediaTypes.ANY) || acceptHeader.contains("*/*") || acceptHeader.contains(produces.getContentType());
-	}
-
-	public ContentType getContentType() {
-		return producedContentType;
+	public boolean accepts(@Nullable String acceptHeader) {
+		return produces.accepts(acceptHeader);
 	}
 
 	/**
@@ -216,7 +236,7 @@ public class ApiListener extends PushingListenerAdapter implements HasPhysicalDe
 	 * The required contentType on requests, if it doesn't match the request will fail
 	 * @ff.default ANY
 	 */
-	public void setConsumes(MediaTypes value) {
+	public void setConsumes(@Nonnull MediaTypes value) {
 		this.consumes = value;
 	}
 
@@ -224,21 +244,19 @@ public class ApiListener extends PushingListenerAdapter implements HasPhysicalDe
 	 * The specified contentType on response. When <code>ANY</code> the response will determine the content type based on the return data.
 	 * @ff.default ANY
 	 */
-	public void setProduces(MediaTypes value) {
+	public void setProduces(@Nonnull MediaTypes value) {
 		this.produces = value;
 	}
 
 	/**
-	 * The specified character encoding on the response contentType header
+	 * The specified character encoding on the response contentType header. NULL or empty
+	 * values will be ignored.
 	 * @ff.default UTF-8
 	 */
 	public void setCharacterEncoding(String charset) {
-		if(StringUtils.isNotEmpty(charset)) {
+		if(StringUtils.isNotBlank(charset)) {
 			this.charset = charset;
 		}
-	}
-	public String getCharacterEncoding() {
-		return charset;
 	}
 
 	/**
@@ -263,7 +281,7 @@ public class ApiListener extends PushingListenerAdapter implements HasPhysicalDe
 	 * Only active when AuthenticationMethod=AUTHROLE. Comma separated list of authorization roles which are granted for this service, eq. IbisTester,IbisObserver", ""})
 	 */
 	public void setAuthenticationRoles(String authRoles) {
-		List<String> roles = new ArrayList<String>();
+		List<String> roles = new ArrayList<>();
 		if (StringUtils.isNotEmpty(authRoles)) {
 			StringTokenizer st = new StringTokenizer(authRoles, ",;");
 			while (st.hasMoreTokens()) {
@@ -294,15 +312,23 @@ public class ApiListener extends PushingListenerAdapter implements HasPhysicalDe
 	}
 
 	/**
-	 * Name of the header which contains the message-id
-	 * @ff.default message-id
+	 * Name of the header which contains the Message-Id.
 	 */
+	@Default(HttpSenderBase.MESSAGE_ID_HEADER)
 	public void setMessageIdHeader(String messageIdHeader) {
 		this.messageIdHeader = messageIdHeader;
 	}
 
 	/**
-	 * Unique string used to identify the operation. The id MUST be unique among all operations described in the OpenApi schema
+	 * Name of the header which contains the Correlation-Id.
+	 */
+	@Default(HttpSenderBase.CORRELATION_ID_HEADER)
+	public void setCorrelationIdHeader(String correlationIdHeader) {
+		this.correlationIdHeader = correlationIdHeader;
+	}
+
+	/**
+	 * Unique string used to identify the operation. The id MUST be unique among all operations described in the OpenApi schema.
 	 */
 	public void setOperationId(String operationId) {
 		this.operationId = operationId;

@@ -24,7 +24,6 @@ import java.util.List;
 import nl.nn.adapterframework.core.PipeLineSession;
 import nl.nn.adapterframework.core.PipeRunException;
 import nl.nn.adapterframework.core.PipeRunResult;
-import nl.nn.adapterframework.doc.IbisDoc;
 import nl.nn.adapterframework.stream.Message;
 import nl.nn.adapterframework.util.FileUtils;
 
@@ -63,10 +62,9 @@ public class CleanupOldFilesPipe extends FixedForwardPipe {
 				} else {
 					if (StringUtils.isEmpty(message.asString())) {
 						throw new PipeRunException(this, "input empty, but should contain filename to delete");
-					} else {
-						File in = new File(message.asString());
-						filename = in.getName();
 					}
+					File in = new File(message.asString());
+					filename = in.getName();
 				}
 			}
 
@@ -75,19 +73,19 @@ public class CleanupOldFilesPipe extends FixedForwardPipe {
 				for (Iterator<File> fileIt = delFiles.iterator(); fileIt.hasNext();) {
 					File file = fileIt.next();
 					if (file.delete()) {
-						log.info(getLogPrefix(session)+"deleted file ["+file.getAbsolutePath()+"]");
+						log.info("deleted file [{}]", file::getAbsolutePath);
 					} else {
-						log.warn(getLogPrefix(session)+"could not delete file ["+file.getAbsolutePath()+"]");
+						log.warn("could not delete file [{}]", file::getAbsolutePath);
 					}
 				}
 			} else {
-				log.info(getLogPrefix(session)+"no files match pattern ["+filename+"]");
+				log.info("no files match pattern [{}]", filename);
 			}
 
 			if (isDeleteEmptySubdirectories()) {
 				File file = new File(filename);
 				if (file.exists()) {
-					deleteEmptySubdirectories(getLogPrefix(session), file, 0);
+					deleteEmptySubdirectories(file, 0);
 				}
 			}
 
@@ -140,21 +138,21 @@ public class CleanupOldFilesPipe extends FixedForwardPipe {
 		}
 	}
 
-	private void deleteEmptySubdirectories(String logPrefix, File directory, int level) {
+	private void deleteEmptySubdirectories(File directory, int level) {
 		if (directory.isDirectory()) {
 			File[] dirs = directory.listFiles(dirFilter);
 			for (int i = 0; i < dirs.length; i++) {
-				deleteEmptySubdirectories(logPrefix, dirs[i], level+1);
+				deleteEmptySubdirectories(dirs[i], level+1);
 			}
 			if (level>0 && directory.list().length==0) {
 				if (directory.delete()) {
-					log.info(logPrefix+"deleted empty directory ["+directory.getAbsolutePath()+"]");
+					log.info("deleted empty directory [{}]", directory::getAbsolutePath);
 				} else {
-					log.warn(logPrefix+"could not delete empty directory ["+directory.getAbsolutePath()+"]");
+					log.warn("could not delete empty directory [{}]", directory::getAbsolutePath);
 				}
 			}
 		} else {
-			log.warn(logPrefix+"file ["+directory.getAbsolutePath()+"] is not a directory, cannot delete subdirectories");
+			log.warn("file [{}] is not a directory, cannot delete subdirectories", directory::getAbsolutePath);
 		}
 	}
 
@@ -178,7 +176,7 @@ public class CleanupOldFilesPipe extends FixedForwardPipe {
 		}
 	}
 
-	@IbisDoc({"files that match this pattern will be deleted. parameters of the pipe are applied to this pattern. if this attribute is not set, the input of the pipe is interpreted as the file to be removed", ""})
+	/** files that match this pattern will be deleted. parameters of the pipe are applied to this pattern. if this attribute is not set, the input of the pipe is interpreted as the file to be removed */
 	public void setFilePattern(String string) {
 		filePattern = string;
 	}
@@ -186,7 +184,7 @@ public class CleanupOldFilesPipe extends FixedForwardPipe {
 		return filePattern;
 	}
 
-	@IbisDoc({"", " "})
+	/** session key that contains the pattern of files to be deleted, only used if filePattern is not set */
 	public void setFilePatternSessionKey(String string) {
 		filePatternSessionKey = string;
 	}
@@ -194,7 +192,10 @@ public class CleanupOldFilesPipe extends FixedForwardPipe {
 		return filePatternSessionKey;
 	}
 
-	@IbisDoc({"time in milliseconds after last modification that must have passed at least before a file will be deleted (set to negative value to disable)", "0"})
+	/**
+	 * time in milliseconds after last modification that must have passed at least before a file will be deleted (set to negative value to disable)
+	 * @ff.default 0
+	 */
 	public void setLastModifiedDelta(long l) {
 		lastModifiedDelta = l;
 	}
@@ -202,7 +203,10 @@ public class CleanupOldFilesPipe extends FixedForwardPipe {
 		return lastModifiedDelta;
 	}
 
-	@IbisDoc({"when <code>true</code>, files  in subdirectories will be deleted, too", "false"})
+	/**
+	 * when <code>true</code>, files  in subdirectories will be deleted, too
+	 * @ff.default false
+	 */
 	public void setSubdirectories(boolean b) {
 		subdirectories = b;
 	}
@@ -210,7 +214,10 @@ public class CleanupOldFilesPipe extends FixedForwardPipe {
 		return subdirectories;
 	}
 
-	@IbisDoc({"when <code>true</code>, empty subdirectories will be deleted, too", "false"})
+	/**
+	 * when <code>true</code>, empty subdirectories will be deleted, too
+	 * @ff.default false
+	 */
 	public void setDeleteEmptySubdirectories(boolean b) {
 		deleteEmptySubdirectories = b;
 	}
@@ -218,7 +225,7 @@ public class CleanupOldFilesPipe extends FixedForwardPipe {
 		return deleteEmptySubdirectories;
 	}
 
-	@IbisDoc({"filter of files to delete. if not set and a directory is specified, all files in the directory are interpreted to be deleted", ""})
+	/** filter of files to delete. if not set and a directory is specified, all files in the directory are interpreted to be deleted */
 	public void setWildcard(String string) {
 		wildcard = string;
 	}
@@ -226,7 +233,7 @@ public class CleanupOldFilesPipe extends FixedForwardPipe {
 		return wildcard;
 	}
 
-	@IbisDoc({"filter of files to be excluded for deletion", ""})
+	/** filter of files to be excluded for deletion */
 	public void setExcludeWildcard(String excludeWildcard) {
 		this.excludeWildcard = excludeWildcard;
 	}
@@ -234,7 +241,10 @@ public class CleanupOldFilesPipe extends FixedForwardPipe {
 		return excludeWildcard;
 	}
 
-	@IbisDoc({"Minimal age of file <i>in milliseconds</i>, to avoid deleting a file while it is still being written (only used when wildcard is set) (set to 0 to disable)", "1000"})
+	/**
+	 * Minimal age of file <i>in milliseconds</i>, to avoid deleting a file while it is still being written (only used when wildcard is set) (set to 0 to disable)
+	 * @ff.default 1000
+	 */
 	public void setMinStableTime(long minStableTime) {
 		this.minStableTime = minStableTime;
 	}

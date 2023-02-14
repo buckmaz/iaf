@@ -38,7 +38,8 @@ import nl.nn.adapterframework.configuration.ConfigurationWarning;
 import nl.nn.adapterframework.core.PipeLineSession;
 import nl.nn.adapterframework.core.PipeRunException;
 import nl.nn.adapterframework.core.PipeRunResult;
-import nl.nn.adapterframework.doc.IbisDoc;
+import nl.nn.adapterframework.doc.ElementType;
+import nl.nn.adapterframework.doc.ElementType.ElementTypes;
 import nl.nn.adapterframework.stream.Message;
 import nl.nn.adapterframework.util.Misc;
 import nl.nn.adapterframework.util.StreamUtil;
@@ -47,7 +48,7 @@ import nl.nn.adapterframework.util.XmlUtils;
 /**
  * Assumes input to be the file name of a ZIP archive, and unzips it to a
  * directory and/or an XML message.
- * <br>
+ * <br/>
  * The output of each unzipped item is returned in XML as follows when
  * collectFileContents is false:
  * <pre>
@@ -64,7 +65,7 @@ import nl.nn.adapterframework.util.XmlUtils;
  *  &lt;/results&gt;
  * </pre>
  *
- * <br>
+ * <br/>
  * The output of each unzipped item is returned in XML as follows when
  * collectFileContents is true:
  * <pre>
@@ -80,18 +81,19 @@ import nl.nn.adapterframework.util.XmlUtils;
  *       ...
  *  &lt;/results&gt;
  * </pre>
- * <br>
+ * <br/>
  * By default, this pipe takes care
  * to produce unique file names, as follows. When the filename within
  * the archive is:
  * <pre>&lt;basename&gt; + "." + &lt;extension&gt;</pre>
  * then the extracted filename (path omitted) becomes
  * <pre>&lt;basename&gt; + &lt;unique number&gt; + "." + &lt;extension&gt;</pre>
- * <br>
+ * <br/>
  *
  * @since   4.9
  * @author  Gerrit van Brakel
  */
+@ElementType(ElementTypes.TRANSLATOR)
 public class UnzipPipe extends FixedForwardPipe {
 
 	private @Getter String directory;
@@ -144,10 +146,12 @@ public class UnzipPipe extends FixedForwardPipe {
 				} catch (FileNotFoundException e) {
 					throw new PipeRunException(this, "could not find file ["+filename+"]",e);
 				}
+			} else if (!message.isBinary()) {
+				log.warn("expected binary message, encountered character data. Do you need to set processFile=\"true\"?");
 			}
 			return message.asInputStream();
 		} catch (IOException e) {
-			throw new PipeRunException(this, getLogPrefix(session)+"cannot open stream", e);
+			throw new PipeRunException(this, "cannot open stream", e);
 		}
 
 	}
@@ -189,12 +193,12 @@ public class UnzipPipe extends FixedForwardPipe {
 						tmpFile = tmpFile.isDirectory() ? tmpFile : tmpFile.getParentFile();
 						if (!tmpFile.exists()) {
 							if (tmpFile.mkdirs()) {	// Create directories included in the path
-								log.debug(getLogPrefix(session)+"created directory ["+tmpFile.getPath()+"]");
+								log.debug("created directory [{}]", tmpFile.getPath());
 							} else {
-								log.warn(getLogPrefix(session)+"directory ["+tmpFile.getPath()+"] could not be created");
+								log.warn("directory [{}] could not be created", tmpFile.getPath());
 							}
 						} else {
-							log.debug(getLogPrefix(session)+"directory entry ["+tmpFile.getPath()+"] already exists");
+							log.debug("directory entry [{}] already exists", tmpFile.getPath());
 						}
 					}
 
@@ -206,7 +210,7 @@ public class UnzipPipe extends FixedForwardPipe {
 						if (dotPos>=0) {
 							extension=entryname.substring(dotPos);
 							entryNameWithoutExtension=entryname.substring(0,dotPos);
-							log.debug(getLogPrefix(session)+"parsed filename ["+entryNameWithoutExtension+"] extension ["+extension+"]");
+							log.debug("parsed filename [{}] extension [{}]", entryNameWithoutExtension, extension);
 						} else {
 							entryNameWithoutExtension=entryname;
 						}
@@ -240,7 +244,7 @@ public class UnzipPipe extends FixedForwardPipe {
 								tmpFile.deleteOnExit();
 							}
 							try (FileOutputStream fileOutputStream = new FileOutputStream(tmpFile)) {
-								log.debug(getLogPrefix(session)+"writing ZipEntry ["+entryname+"] to file ["+tmpFile.getPath()+"]");
+								log.debug("writing ZipEntry [{}] to file [{}]", entryname, tmpFile.getPath());
 								count++;
 								Misc.streamToStream(inputStream, fileOutputStream);
 							}
@@ -273,37 +277,52 @@ public class UnzipPipe extends FixedForwardPipe {
 		}
 	}
 
-	@IbisDoc({"Directory to extract the archive to", ""})
+	/** Directory to extract the archive to */
 	public void setDirectory(String string) {
 		directory = string;
 	}
 
-	@IbisDoc({"Sessionkey with a directory value to extract the archive to", ""})
+	/** Sessionkey with a directory value to extract the archive to */
 	public void setDirectorySessionKey(String directorySessionKey) {
 		this.directorySessionKey = directorySessionKey;
 	}
 
-	@IbisDoc({"If true, file is automatically deleted upon normal JVM termination", "true"})
+	/**
+	 * If true, file is automatically deleted upon normal JVM termination
+	 * @ff.default true
+	 */
 	public void setDeleteOnExit(boolean b) {
 		deleteOnExit = b;
 	}
 
-	@IbisDoc({"If set <code>false</code>, only a small summary (count of items in zip) is returned", "true"})
+	/**
+	 * If set <code>false</code>, only a small summary (count of items in zip) is returned
+	 * @ff.default true
+	 */
 	public void setCollectResults(boolean b) {
 		collectResults = b;
 	}
 
-	@IbisDoc({"If set <code>true</code>, the contents of the files in the zip are returned in the result xml message of this pipe. Please note this can consume a lot of memory for large files or a large number of files", "false"})
+	/**
+	 * If set <code>true</code>, the contents of the files in the zip are returned in the result xml message of this pipe. Please note this can consume a lot of memory for large files or a large number of files
+	 * @ff.default false
+	 */
 	public void setCollectFileContents(boolean b) {
 		collectFileContents = b;
 	}
 
-	@IbisDoc({"Comma separated list of file extensions. Files with an extension which is part of this list will be base64 encoded. All other files are assumed to have UTF-8 when reading it from the zip and are added as escaped xml with non-unicode-characters being replaced by inverted question mark appended with #, the character number and ;", "false"})
+	/**
+	 * Comma separated list of file extensions. Files with an extension which is part of this list will be base64 encoded. All other files are assumed to have UTF-8 when reading it from the zip and are added as escaped xml with non-unicode-characters being replaced by inverted question mark appended with #, the character number and ;
+	 * @ff.default false
+	 */
 	public void setCollectFileContentsBase64Encoded(String string) {
 		collectFileContentsBase64Encoded = string;
 	}
 
-	@IbisDoc({"If set <code>false</code>, a suffix is added to the original filename to be sure it is unique", "false"})
+	/**
+	 * If set <code>false</code>, a suffix is added to the original filename to be sure it is unique
+	 * @ff.default false
+	 */
 	public void setKeepOriginalFileName(boolean b) {
 		keepOriginalFileName = b;
 	}
@@ -314,12 +333,18 @@ public class UnzipPipe extends FixedForwardPipe {
 		setKeepOriginalFilePath(b);
 	}
 
-	@IbisDoc({"If set <code>true</code>, the path of the zip entry will be preserved. Otherwise, the zip entries will be extracted to the root folder", "false"})
+	/**
+	 * If set <code>true</code>, the path of the zip entry will be preserved. Otherwise, the zip entries will be extracted to the root folder
+	 * @ff.default false
+	 */
 	public void setKeepOriginalFilePath(boolean b) {
 		keepOriginalFilePath = b;
 	}
 
-	@IbisDoc({"If set <code>true</code>, validation of directory is ignored", "false"})
+	/**
+	 * If set <code>true</code>, validation of directory is ignored
+	 * @ff.default false
+	 */
 	public void setAssumeDirectoryExists(boolean assumeDirectoryExists) {
 		this.assumeDirectoryExists = assumeDirectoryExists;
 	}
@@ -330,7 +355,10 @@ public class UnzipPipe extends FixedForwardPipe {
 		this.assumeDirectoryExists = checkDirectory;
 	}
 
-	@IbisDoc({"If set <code>true</code>, the input is assumed to be the name of a file to be processed. Otherwise, the input itself is used.", "false"})
+	/**
+	 * If set <code>true</code>, the input is assumed to be the name of a file to be processed. Otherwise, the input itself is used.
+	 * @ff.default false
+	 */
 	@Deprecated
 	@ConfigurationWarning("Please add a LocalFileSystemPipe with action=read in front of this pipe instead")
 	public void setProcessFile(boolean b) {

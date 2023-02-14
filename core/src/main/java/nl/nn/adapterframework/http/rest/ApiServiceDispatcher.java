@@ -28,12 +28,12 @@ import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.core.Response.Status;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.Logger;
 import org.apache.xerces.xs.XSModel;
+import org.springframework.util.MimeType;
 
 import jakarta.json.Json;
 import jakarta.json.JsonArray;
@@ -54,7 +54,6 @@ import nl.nn.adapterframework.pipes.Json2XmlValidator;
 import nl.nn.adapterframework.util.AppConstants;
 import nl.nn.adapterframework.util.DateUtils;
 import nl.nn.adapterframework.util.LogUtil;
-import nl.nn.adapterframework.util.Misc;
 
 /**
  * This class registers dispatches requests to the proper registered ApiListeners.
@@ -163,16 +162,16 @@ public class ApiServiceDispatcher {
 		return Collections.unmodifiableSortedMap(patternClients);
 	}
 
-	protected JsonObject generateOpenApiJsonSchema(HttpServletRequest request) {
-		return generateOpenApiJsonSchema(getPatternClients().values(), request);
+	public JsonObject generateOpenApiJsonSchema(String endpoint) {
+		return generateOpenApiJsonSchema(getPatternClients().values(), endpoint);
 	}
 
-	protected JsonObject generateOpenApiJsonSchema(ApiDispatchConfig client, HttpServletRequest request) {
+	public JsonObject generateOpenApiJsonSchema(ApiDispatchConfig client, String endpoint) {
 		List<ApiDispatchConfig> clientList = Arrays.asList(client);
-		return generateOpenApiJsonSchema(clientList, request);
+		return generateOpenApiJsonSchema(clientList, endpoint);
 	}
 
-	protected JsonObject generateOpenApiJsonSchema(Collection<ApiDispatchConfig> clients, HttpServletRequest request) {
+	protected JsonObject generateOpenApiJsonSchema(Collection<ApiDispatchConfig> clients, String endpoint) {
 		JsonObjectBuilder root = Json.createObjectBuilder();
 		root.add("openapi", "3.0.0");
 		String instanceName = AppConstants.getInstance().getProperty("instance.name");
@@ -182,7 +181,7 @@ public class ApiServiceDispatcher {
 		info.add("description", "OpenApi auto-generated at "+DateUtils.getTimeStamp()+" for "+instanceName+" ("+environment+")");
 		info.add("version", "unknown");
 		root.add("info", info);
-		root.add("servers", mapServers(request));
+		root.add("servers", mapServers(endpoint));
 
 		JsonObjectBuilder paths = Json.createObjectBuilder();
 		JsonObjectBuilder schemas = Json.createObjectBuilder();
@@ -205,11 +204,9 @@ public class ApiServiceDispatcher {
 					if(method != HttpMethod.GET && method != HttpMethod.DELETE) {
 						mapRequest(adapter, listener.getConsumes(), methodBuilder);
 					}
-					mapParamsInRequest(request, adapter, listener, methodBuilder);
+					mapParamsInRequest(adapter, listener, methodBuilder);
 
-					//ContentType may have more parameters such as charset and formdata-boundry
-					MediaTypes produces = listener.getProduces();
-					methodBuilder.add("responses", mapResponses(adapter, produces, schemas));
+					methodBuilder.add("responses", mapResponses(adapter, listener.getContentType(), schemas));
 				}
 				methods.add(method.name().toLowerCase(), methodBuilder);
 			}
@@ -225,7 +222,7 @@ public class ApiServiceDispatcher {
 		return root.build();
 	}
 
-	private JsonArrayBuilder mapServers(HttpServletRequest request) {
+	private JsonArrayBuilder mapServers(String url) {
 		JsonArrayBuilder serversArray = Json.createArrayBuilder();
 		String servletPath = AppConstants.getInstance().getString("servlet.ApiListenerServlet.urlMapping", "/api");
 
@@ -233,11 +230,7 @@ public class ApiServiceDispatcher {
 		String loadBalancerUrl = AppConstants.getInstance().getProperty("loadBalancer.url", null);
 		if(StringUtils.isNotEmpty(loadBalancerUrl)) {
 			serversArray.add(Json.createObjectBuilder().add("url", loadBalancerUrl + servletPath).add("description", "load balancer"));
-		} else { // fall back to the request url
-			String requestUrl = request.getRequestURL().toString(); // raw request -> schema+hostname+port/context-path/servlet-path/+request-uri
-			requestUrl = Misc.urlDecode(requestUrl);
-			String requestPath = request.getPathInfo(); // -> the remaining path, starts with a /. Is automatically decoded by the web container!
-			String url = requestUrl.substring(0, requestUrl.indexOf(requestPath));
+		} else if(StringUtils.isNotBlank(url)) { // fall back to the request url
 			serversArray.add(Json.createObjectBuilder().add("url", url));
 		}
 
@@ -255,11 +248,11 @@ public class ApiServiceDispatcher {
 		return null;
 	}
 
-	private void mapParamsInRequest(HttpServletRequest request, IAdapter adapter, ApiListener listener, JsonObjectBuilder methodBuilder) {
+	private void mapParamsInRequest(IAdapter adapter, ApiListener listener, JsonObjectBuilder methodBuilder) {
 		String uriPattern = listener.getUriPattern();
 		JsonArrayBuilder paramBuilder = Json.createArrayBuilder();
 		mapPathParameters(paramBuilder, uriPattern);
-		List<String> paramsFromHeaderAndCookie = mapHeaderAndParams(paramBuilder, request, listener);
+		List<String> paramsFromHeaderAndCookie = mapHeaderAndParams(paramBuilder, listener);
 
 		// query params
 		Json2XmlValidator inputValidator = getJsonValidator(adapter.getPipeLine(), false);
@@ -278,7 +271,7 @@ public class ApiServiceDispatcher {
 		}
 	}
 
-	private List<String> mapHeaderAndParams(JsonArrayBuilder paramBuilder, HttpServletRequest request, ApiListener listener) {
+	private List<String> mapHeaderAndParams(JsonArrayBuilder paramBuilder, ApiListener listener) {
 		List<String> paramsFromHeaderAndCookie = new ArrayList<>();
 		// header parameters
 		if(StringUtils.isNotEmpty(listener.getHeaderParams())) {
@@ -289,10 +282,7 @@ public class ApiServiceDispatcher {
 			}
 		}
 		if(StringUtils.isNotEmpty(listener.getMessageIdHeader())) {
-			String messageIdHeader = request.getHeader(listener.getMessageIdHeader());
-			if(StringUtils.isNotEmpty(messageIdHeader)) {
-				paramBuilder.add(addParameterToSchema(listener.getMessageIdHeader(), "header", false, Json.createObjectBuilder().add("type", "string")));
-			}
+			paramBuilder.add(addParameterToSchema(listener.getMessageIdHeader(), "header", false, Json.createObjectBuilder().add("type", "string")));
 		}
 
 		return paramsFromHeaderAndCookie;
@@ -326,12 +316,17 @@ public class ApiServiceDispatcher {
 		if(inputValidator != null && StringUtils.isNotEmpty(inputValidator.getRoot())) {
 			JsonObjectBuilder requestBodyContent = Json.createObjectBuilder();
 			JsonObjectBuilder schemaBuilder = Json.createObjectBuilder().add("schema", Json.createObjectBuilder().add("$ref", XmlTypeToJsonSchemaConverter.SCHEMA_DEFINITION_PATH+inputValidator.getRoot()));
-			requestBodyContent.add("content", Json.createObjectBuilder().add(consumes.getContentType(), schemaBuilder));
+			requestBodyContent.add("content", Json.createObjectBuilder().add(mimeTypeToString(consumes.getMimeType()), schemaBuilder));
 			methodBuilder.add("requestBody", requestBodyContent);
 		}
 	}
 
-	private JsonObjectBuilder mapResponses(IAdapter adapter, MediaTypes contentType, JsonObjectBuilder schemas) {
+	//ContentType may have more parameters such as charset and formdata-boundry, strip those
+	private String mimeTypeToString(MimeType mimeType) {
+		return mimeType.getType() + "/" + mimeType.getSubtype();
+	}
+
+	private JsonObjectBuilder mapResponses(IAdapter adapter, MimeType contentType, JsonObjectBuilder schemas) {
 		JsonObjectBuilder responses = Json.createObjectBuilder();
 
 		PipeLine pipeline = adapter.getPipeLine();
@@ -383,7 +378,7 @@ public class ApiServiceDispatcher {
 					}
 					// JsonObjectBuilder add method consumes the schema
 					schema.add("schema", Json.createObjectBuilder().add("$ref", XmlTypeToJsonSchemaConverter.SCHEMA_DEFINITION_PATH+reference));
-					content.add(contentType.getContentType(), schema);
+					content.add(mimeTypeToString(contentType), schema);
 				}
 				exit.add("content", content);
 			}

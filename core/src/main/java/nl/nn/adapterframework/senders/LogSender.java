@@ -1,5 +1,5 @@
 /*
-   Copyright 2013 Nationale-Nederlanden
+   Copyright 2013 Nationale-Nederlanden, 2022 WeAreFrank!
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -25,9 +25,9 @@ import nl.nn.adapterframework.configuration.ConfigurationException;
 import nl.nn.adapterframework.core.ParameterException;
 import nl.nn.adapterframework.core.PipeLineSession;
 import nl.nn.adapterframework.core.SenderException;
+import nl.nn.adapterframework.core.SenderResult;
 import nl.nn.adapterframework.core.TimeoutException;
 import nl.nn.adapterframework.doc.Category;
-import nl.nn.adapterframework.doc.IbisDoc;
 import nl.nn.adapterframework.parameters.ParameterValue;
 import nl.nn.adapterframework.parameters.ParameterValueList;
 import nl.nn.adapterframework.stream.Message;
@@ -60,7 +60,7 @@ public class LogSender extends SenderWithParametersBase {
 	}
 
 	@Override
-	public Message sendMessage(Message message, PipeLineSession session) throws SenderException, TimeoutException {
+	public SenderResult sendMessage(Message message, PipeLineSession session) throws SenderException, TimeoutException {
 		try {
 			logger.log(level, message.asString());
 		} catch (IOException io) {
@@ -78,7 +78,7 @@ public class LogSender extends SenderWithParametersBase {
 				throw new SenderException("exception determining value of parameters", e);
 			}
 		}
-		return message;
+		return new SenderResult(message);
 	}
 
 	public void handleParam(String paramName, Object value) {
@@ -95,7 +95,10 @@ public class LogSender extends SenderWithParametersBase {
 		return this.getClass().getName();
 	}
 
-	@IbisDoc({"category under which messages are logged", "name of the sender"})
+	/**
+	 * category under which messages are logged
+	 * @ff.default name of the sender
+	 */
 	public void setLogCategory(String string) {
 		logCategory = string;
 	}
@@ -104,7 +107,10 @@ public class LogSender extends SenderWithParametersBase {
 		return logLevel;
 	}
 
-	@IbisDoc({"level on which messages are logged", "info"})
+	/**
+	 * level on which messages are logged
+	 * @ff.default info
+	 */
 	public void setLogLevel(String string) {
 		logLevel = string;
 	}

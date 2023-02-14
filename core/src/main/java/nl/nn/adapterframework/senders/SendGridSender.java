@@ -38,10 +38,12 @@ import com.sendgrid.helpers.mail.objects.Content;
 import com.sendgrid.helpers.mail.objects.Email;
 import com.sendgrid.helpers.mail.objects.Personalization;
 
+import lombok.Getter;
+import lombok.Setter;
+
 import nl.nn.adapterframework.configuration.ConfigurationException;
 import nl.nn.adapterframework.configuration.ConfigurationWarning;
 import nl.nn.adapterframework.core.SenderException;
-import nl.nn.adapterframework.doc.IbisDocRef;
 import nl.nn.adapterframework.encryption.HasKeystore;
 import nl.nn.adapterframework.encryption.HasTruststore;
 import nl.nn.adapterframework.encryption.KeystoreType;
@@ -58,7 +60,7 @@ import nl.nn.adapterframework.util.XmlUtils;
  */
 public class SendGridSender extends MailSenderBase implements HasKeystore, HasTruststore {
 
-	private final String HTTPSENDERBASE = "nl.nn.adapterframework.http.HttpSenderBase";
+	private static final String HTTPSENDERBASE = "nl.nn.adapterframework.http.HttpSenderBase";
 
 	private String url="http://smtp.sendgrid.net";
 	private SendGrid sendGrid;
@@ -95,53 +97,64 @@ public class SendGridSender extends MailSenderBase implements HasKeystore, HasTr
 	}
 
 	@Override
-	public String sendEmail(MailSession mailSession) throws SenderException {
+	public String sendEmail(MailSessionBase mailSession) throws SenderException {
 		String result = null;
 
 		Mail mail = null;
 
 		try {
-			mail = createEmail(mailSession);
+			mail = createEmail((GridMailSession)mailSession);
 		} catch (Exception e) {
 			throw new SenderException("Exception occured while composing email", e);
 		}
 
-		try {
-			Request request = new Request();
-			request.setMethod(Method.POST);
-			request.setEndpoint("mail/send");
-			request.setBody(mail.build());
-			Response response = sendGrid.api(request);
-			result = response.getBody();
-			log.debug("Mail send result" + result);
-			return result;
-		} catch (Exception e) {
-			throw new SenderException(
-					getLogPrefix() + "exception sending mail with subject [" + mail.getSubject() + "]", e);
+		if (mailSession.hasWhitelistedRecipients()) {
+			try {
+				Request request = new Request();
+				request.setMethod(Method.POST);
+				request.setEndpoint("mail/send");
+				request.setBody(mail.build());
+				Response response = sendGrid.api(request);
+				result = response.getBody();
+				log.debug("Mail send result" + result);
+				return result;
+			} catch (Exception e) {
+				throw new SenderException(
+						getLogPrefix() + "exception sending mail with subject [" + mail.getSubject() + "]", e);
+			}
+		} else {
+			if (log.isDebugEnabled()) {
+				log.debug("No recipients left after whitelisting, mail is not send");
+			}
+			return "Mail not send, no recipients left after whitelisting";
 		}
+	}
+
+	@Override
+	protected GridMailSession createMailSession() throws SenderException {
+		return new GridMailSession();
 	}
 
 	/**
 	 * Creates sendgrid mail object
 	 */
-	private Mail createEmail(MailSession mailSession) throws SenderException, DomBuilderException, IOException {
+	private Mail createEmail(GridMailSession gridMailSession) throws SenderException, DomBuilderException, IOException {
 		Mail mail = new Mail();
-		Personalization personalization = new Personalization();
+		Personalization personalization = gridMailSession.getPersonalization();
 
-		List<EMail> emailList = mailSession.getRecipientList();
-		EMail from = mailSession.getFrom();
-		EMail replyTo = mailSession.getReplyto();
-		setEmailAddresses(mail, personalization, emailList, from, replyTo);
+		EMail from = gridMailSession.getFrom();
+		EMail replyTo = gridMailSession.getReplyto();
+		setEmailAddresses(mail, gridMailSession, from, replyTo);
 
-		String subject = mailSession.getSubject();
+		String subject = gridMailSession.getSubject();
 		setSubject(mail, personalization, subject);
 
-		setMessage(mail, mailSession);
+		setMessage(mail, gridMailSession);
 
-		List<MailAttachmentStream> attachmentList = mailSession.getAttachmentList();
+		List<MailAttachmentStream> attachmentList = gridMailSession.getAttachmentList();
 		setAttachments(mail, attachmentList);
 
-		Collection<Node> headers = mailSession.getHeaders();
+		Collection<Node> headers = gridMailSession.getHeaders();
 		setHeader(mail, personalization, headers);
 		mail.addPersonalization(personalization);
 		return mail;
@@ -154,7 +167,7 @@ public class SendGridSender extends MailSenderBase implements HasKeystore, HasTr
 	 * @param headers 
 	 */
 	private void setHeader(Mail mail, Personalization personalization, Collection<Node> headers) {
-		if (headers != null && headers.size() > 0) {
+		if (headers != null && !headers.isEmpty()) {
 			Iterator<Node> iter = headers.iterator();
 			while (iter.hasNext()) {
 				Element headerElement = (Element) iter.next();
@@ -168,12 +181,8 @@ public class SendGridSender extends MailSenderBase implements HasKeystore, HasTr
 
 	/**
 	 * Adds attachments to mail Object if there is any
-	 * @param mail 
-	 * @param attachmentList 
-	 * @throws SenderException 
-	 * @throws IOException 
 	 */
-	private void setAttachments(Mail mail, List<MailAttachmentStream> attachmentList) throws SenderException, IOException {
+	private void setAttachments(Mail mail, List<MailAttachmentStream> attachmentList) {
 		if (attachmentList != null) {
 			Iterator<MailAttachmentStream> iter = attachmentList.iterator();
 			while (iter.hasNext()) {
@@ -188,7 +197,7 @@ public class SendGridSender extends MailSenderBase implements HasKeystore, HasTr
 	/**
 	 * Sets content of email to mail Object
 	 */
-	private void setMessage(Mail mail, MailSession mailSession) {
+	private void setMessage(Mail mail, MailSessionBase mailSession) {
 		String message = mailSession.getMessage();
 		String messageType = mailSession.getMessageType();
 
@@ -230,42 +239,12 @@ public class SendGridSender extends MailSenderBase implements HasKeystore, HasTr
 
 	/**
 	 * Sets recipients, sender and replyto to mail object 
-	 * @param mail 
-	 * @param personalization 
-	 * @param list 
-	 * @param replyTo 
-	 * @param from 
-	 * @throws SenderException 
 	 */
-	private void setEmailAddresses(Mail mail, Personalization personalization, List<EMail> list, EMail from,
-			EMail replyTo) throws SenderException {
-		if (list != null && !list.isEmpty()) {
-			for (EMail e : list) {
-				if ("cc".equalsIgnoreCase(e.getType())) {
-					Email cc = new Email();
-					cc.setName(e.getName());
-					cc.setEmail(e.getAddress());
-					personalization.addCc(cc);
-				} else if ("bcc".equalsIgnoreCase(e.getType())) {
-					Email bcc = new Email();
-					bcc.setName(e.getName());
-					bcc.setEmail(e.getAddress());
-					personalization.addBcc(bcc);
-				} else if ("to".equalsIgnoreCase(e.getType())) {
-					Email to = new Email();
-					to.setEmail(e.getAddress());
-					to.setName(e.getName());
-					personalization.addTo(to);
-				} else {
-					throw new SenderException("Recipients not found");
-				}
-			}
-		} else {
-			throw new SenderException("Recipients not found");
-		}
+	private void setEmailAddresses(Mail mail, GridMailSession gridMailSession, EMail from, EMail replyTo) throws SenderException {
+		gridMailSession.setRecipientsOnMessage(new StringBuffer());
+
 		Email fromEmail = new Email();
 		if (from != null && from.getAddress() != null && !from.getAddress().isEmpty()) {
-			fromEmail.setEmail(from.getAddress());
 			fromEmail.setEmail(from.getAddress());
 			fromEmail.setName(from.getName());
 			mail.setFrom(fromEmail);
@@ -284,53 +263,54 @@ public class SendGridSender extends MailSenderBase implements HasKeystore, HasTr
 	//Properties inherited from HttpSenderBase
 
 	@Override
-	@IbisDocRef({HTTPSENDERBASE})
+	/** @ff.ref nl.nn.adapterframework.http.HttpSenderBase */
 	public void setTimeout(int i) {
 		super.setTimeout(i);
 		httpSender.setTimeout(i);
 	}
 
-	@IbisDocRef({HTTPSENDERBASE})
+	/** @ff.ref nl.nn.adapterframework.http.HttpSenderBase */
 	public void setMaxConnections(int i) {
 		httpSender.setMaxConnections(i);
 	}
 
-	@IbisDocRef({HTTPSENDERBASE})
+	/** @ff.ref nl.nn.adapterframework.http.HttpSenderBase */
 	public void setMaxExecuteRetries(int i) {
 		httpSender.setMaxExecuteRetries(i);
 	}
 
 
-	@IbisDocRef({HTTPSENDERBASE})
+	/** @ff.ref nl.nn.adapterframework.http.HttpSenderBase */
 	public void setProxyHost(String string) {
 		httpSender.setProxyHost(string);
 	}
 
-	@IbisDocRef({HTTPSENDERBASE})
+	/** @ff.ref nl.nn.adapterframework.http.HttpSenderBase */
 	public void setProxyPort(int i) {
 		httpSender.setProxyPort(i);
 	}
 
-	@IbisDocRef({HTTPSENDERBASE})
+	/** @ff.ref nl.nn.adapterframework.http.HttpSenderBase */
 	public void setProxyAuthAlias(String string) {
 		httpSender.setProxyAuthAlias(string);
 	}
 
-	@IbisDocRef({HTTPSENDERBASE})
+	/** @ff.ref nl.nn.adapterframework.http.HttpSenderBase */
 	public void setProxyUsername(String string) {
 		httpSender.setProxyUsername(string);
 	}
+
 	@Deprecated
 	@ConfigurationWarning("Please use \"proxyUsername\" instead")
 	public void setProxyUserName(String string) {
 		setProxyUsername(string);
 	}
-	@IbisDocRef({HTTPSENDERBASE})
+	/** @ff.ref nl.nn.adapterframework.http.HttpSenderBase */
 	public void setProxyPassword(String string) {
 		httpSender.setProxyPassword(string);
 	}
 
-	@IbisDocRef({HTTPSENDERBASE})
+	/** @ff.ref nl.nn.adapterframework.http.HttpSenderBase */
 	public void setProxyRealm(String string) {
 		httpSender.setProxyRealm(string);
 	}
@@ -360,7 +340,7 @@ public class SendGridSender extends MailSenderBase implements HasKeystore, HasTr
 
 
 	@Override
-	@IbisDocRef({HTTPSENDERBASE})
+	/** @ff.ref nl.nn.adapterframework.http.HttpSenderBase */
 	public void setKeystore(String keystore) {
 		httpSender.setKeystore(keystore);
 	}
@@ -370,7 +350,7 @@ public class SendGridSender extends MailSenderBase implements HasKeystore, HasTr
 	}
 
 	@Override
-	@IbisDocRef({HTTPSENDERBASE})
+	/** @ff.ref nl.nn.adapterframework.http.HttpSenderBase */
 	public void setKeystoreType(KeystoreType keystoreType) {
 		httpSender.setKeystoreType(keystoreType);
 	}
@@ -380,7 +360,7 @@ public class SendGridSender extends MailSenderBase implements HasKeystore, HasTr
 	}
 
 	@Override
-	@IbisDocRef({HTTPSENDERBASE})
+	/** @ff.ref nl.nn.adapterframework.http.HttpSenderBase */
 	public void setKeystoreAuthAlias(String keystoreAuthAlias) {
 		httpSender.setKeystoreAuthAlias(keystoreAuthAlias);
 	}
@@ -390,7 +370,7 @@ public class SendGridSender extends MailSenderBase implements HasKeystore, HasTr
 	}
 
 	@Override
-	@IbisDocRef({HTTPSENDERBASE})
+	/** @ff.ref nl.nn.adapterframework.http.HttpSenderBase */
 	public void setKeystorePassword(String keystorePassword) {
 		httpSender.setKeystorePassword(keystorePassword);
 	}
@@ -400,7 +380,7 @@ public class SendGridSender extends MailSenderBase implements HasKeystore, HasTr
 	}
 
 	@Override
-	@IbisDocRef({HTTPSENDERBASE})
+	/** @ff.ref nl.nn.adapterframework.http.HttpSenderBase */
 	public void setKeystoreAlias(String keystoreAlias) {
 		httpSender.setKeystoreAlias(keystoreAlias);
 	}
@@ -410,7 +390,7 @@ public class SendGridSender extends MailSenderBase implements HasKeystore, HasTr
 	}
 
 	@Override
-	@IbisDocRef({HTTPSENDERBASE})
+	/** @ff.ref nl.nn.adapterframework.http.HttpSenderBase */
 	public void setKeystoreAliasAuthAlias(String keystoreAliasAuthAlias) {
 		httpSender.setKeystoreAliasAuthAlias(keystoreAliasAuthAlias);
 	}
@@ -420,7 +400,7 @@ public class SendGridSender extends MailSenderBase implements HasKeystore, HasTr
 	}
 
 	@Override
-	@IbisDocRef({HTTPSENDERBASE})
+	/** @ff.ref nl.nn.adapterframework.http.HttpSenderBase */
 	public void setKeystoreAliasPassword(String keystoreAliasPassword) {
 		httpSender.setKeystoreAliasPassword(keystoreAliasPassword);
 	}
@@ -430,7 +410,7 @@ public class SendGridSender extends MailSenderBase implements HasKeystore, HasTr
 	}
 
 	@Override
-	@IbisDocRef({HTTPSENDERBASE})
+	/** @ff.ref nl.nn.adapterframework.http.HttpSenderBase */
 	public void setKeyManagerAlgorithm(String keyManagerAlgorithm) {
 		httpSender.setKeyManagerAlgorithm(keyManagerAlgorithm);
 	}
@@ -439,9 +419,8 @@ public class SendGridSender extends MailSenderBase implements HasKeystore, HasTr
 		return httpSender.getKeyManagerAlgorithm();
 	}
 
-	
 	@Override
-	@IbisDocRef({HTTPSENDERBASE})
+	/** @ff.ref nl.nn.adapterframework.http.HttpSenderBase */
 	public void setTruststore(String truststore) {
 		httpSender.setTruststore(truststore);
 	}
@@ -451,7 +430,7 @@ public class SendGridSender extends MailSenderBase implements HasKeystore, HasTr
 	}
 
 	@Override
-	@IbisDocRef({HTTPSENDERBASE})
+	/** @ff.ref nl.nn.adapterframework.http.HttpSenderBase */
 	public void setTruststoreType(KeystoreType truststoreType) {
 		httpSender.setTruststoreType(truststoreType);
 	}
@@ -462,7 +441,7 @@ public class SendGridSender extends MailSenderBase implements HasKeystore, HasTr
 
 
 	@Override
-	@IbisDocRef({HTTPSENDERBASE})
+	/** @ff.ref nl.nn.adapterframework.http.HttpSenderBase */
 	public void setTruststoreAuthAlias(String truststoreAuthAlias) {
 		httpSender.setTruststoreAuthAlias(truststoreAuthAlias);
 	}
@@ -472,7 +451,7 @@ public class SendGridSender extends MailSenderBase implements HasKeystore, HasTr
 	}
 
 	@Override
-	@IbisDocRef({HTTPSENDERBASE})
+	/** @ff.ref nl.nn.adapterframework.http.HttpSenderBase */
 	public void setTruststorePassword(String truststorePassword) {
 		httpSender.setTruststorePassword(truststorePassword);
 	}
@@ -482,7 +461,7 @@ public class SendGridSender extends MailSenderBase implements HasKeystore, HasTr
 	}
 
 	@Override
-	@IbisDocRef({HTTPSENDERBASE})
+	/** @ff.ref nl.nn.adapterframework.http.HttpSenderBase */
 	public void setTrustManagerAlgorithm(String trustManagerAlgorithm) {
 		httpSender.setTrustManagerAlgorithm(trustManagerAlgorithm);
 	}
@@ -492,7 +471,7 @@ public class SendGridSender extends MailSenderBase implements HasKeystore, HasTr
 	}
 
 	@Override
-	@IbisDocRef({HTTPSENDERBASE})
+	/** @ff.ref nl.nn.adapterframework.http.HttpSenderBase */
 	public void setVerifyHostname(boolean verifyHostname) {
 		httpSender.setVerifyHostname(verifyHostname);
 	}
@@ -502,7 +481,7 @@ public class SendGridSender extends MailSenderBase implements HasKeystore, HasTr
 	}
 
 	@Override
-	@IbisDocRef({HTTPSENDERBASE})
+	/** @ff.ref nl.nn.adapterframework.http.HttpSenderBase */
 	public void setAllowSelfSignedCertificates(boolean testModeNoCertificatorCheck) {
 		httpSender.setAllowSelfSignedCertificates(testModeNoCertificatorCheck);
 	}
@@ -512,7 +491,7 @@ public class SendGridSender extends MailSenderBase implements HasKeystore, HasTr
 	}
 
 	@Override
-	@IbisDocRef({HTTPSENDERBASE})
+	/** @ff.ref nl.nn.adapterframework.http.HttpSenderBase */
 	public void setIgnoreCertificateExpiredException(boolean ignoreCertificateExpiredException) {
 		httpSender.setIgnoreCertificateExpiredException(ignoreCertificateExpiredException);
 	}
@@ -521,25 +500,66 @@ public class SendGridSender extends MailSenderBase implements HasKeystore, HasTr
 		return httpSender.isIgnoreCertificateExpiredException();
 	}
 
-	
-	@IbisDocRef({HTTPSENDERBASE})
+	/** @ff.ref nl.nn.adapterframework.http.HttpSenderBase */
 	public void setFollowRedirects(boolean b) {
 		httpSender.setFollowRedirects(b);
 	}
 
-	@IbisDocRef({HTTPSENDERBASE})
+	/** @ff.ref nl.nn.adapterframework.http.HttpSenderBase */
 	public void setStaleChecking(boolean b) {
 		httpSender.setStaleChecking(b);
 	}
-	
-	@IbisDocRef({HTTPSENDERBASE})
+
+	/** @ff.ref nl.nn.adapterframework.http.HttpSenderBase */
 	public void setStaleTimeout(int timeout) {
 		httpSender.setStaleTimeout(timeout);
 	}
 
 
-	@IbisDocRef({HTTPSENDERBASE})
+	/** @ff.ref nl.nn.adapterframework.http.HttpSenderBase */
 	public void setProtocol(String protocol) {
 		httpSender.setProtocol(protocol);
+	}
+
+	public class GridMailSession extends MailSessionBase {
+		private @Getter @Setter Personalization personalization = null;
+
+		public GridMailSession() throws SenderException {
+			super();
+			this.setPersonalization(new Personalization());
+		}
+
+		@Override
+		protected void addRecipientToMessage(EMail recipient) throws SenderException {
+			if ("cc".equalsIgnoreCase(recipient.getType())) {
+				Email cc = new Email();
+				cc.setName(recipient.getName());
+				cc.setEmail(recipient.getAddress());
+				personalization.addCc(cc);
+			} else if ("bcc".equalsIgnoreCase(recipient.getType())) {
+				Email bcc = new Email();
+				bcc.setName(recipient.getName());
+				bcc.setEmail(recipient.getAddress());
+				personalization.addBcc(bcc);
+			} else if ("to".equalsIgnoreCase(recipient.getType())) {
+				Email to = new Email();
+				to.setEmail(recipient.getAddress());
+				to.setName(recipient.getName());
+				personalization.addTo(to);
+			} else {
+				throw new SenderException("Recipients not found");
+			}
+		}
+
+		@Override
+		protected boolean hasWhitelistedRecipients() {
+			List<Email> tos = personalization.getTos();
+			List<Email> ccs = personalization.getCcs();
+			List<Email> bccs = personalization.getBccs();
+
+			return (tos != null && !tos.isEmpty())
+				|| (ccs != null && !ccs.isEmpty())
+				|| (bccs != null && !bccs.isEmpty());
+		}
 	}
 }

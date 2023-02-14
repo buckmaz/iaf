@@ -1,5 +1,5 @@
 /*
-   Copyright 2021, 2022 WeAreFrank!
+   Copyright 2021-2023 WeAreFrank!
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.sql.Wrapper;
 import java.util.Properties;
+import java.util.Set;
 
 import javax.sql.CommonDataSource;
 import javax.sql.DataSource;
@@ -33,6 +34,7 @@ import com.arjuna.ats.jdbc.TransactionalDriver;
 
 import lombok.Getter;
 import lombok.Setter;
+import nl.nn.adapterframework.util.ClassUtils;
 import nl.nn.adapterframework.util.LogUtil;
 
 /**
@@ -44,7 +46,7 @@ public class NarayanaDataSource implements DataSource {
 	protected Logger log = LogUtil.getLogger(this);
 
 	private @Setter boolean connectionPooling = true;
-	private @Setter int maxConnections = 50;
+	private @Setter int maxConnections = 20;
 
 	private @Getter CommonDataSource targetDataSource;
 	private String dbUrl;
@@ -56,19 +58,19 @@ public class NarayanaDataSource implements DataSource {
 
 	@Override
 	public Connection getConnection() throws SQLException {
-		Properties properties = new Properties();
-		properties.put(TransactionalDriver.XADataSource, getTargetDataSource());
-		properties.setProperty(TransactionalDriver.poolConnections, ""+connectionPooling);
-		properties.setProperty(TransactionalDriver.maxConnections, ""+maxConnections);
-		return ConnectionManager.create(dbUrl, properties);
+		return getConnection(null, null);
 	}
 
 	@Override
 	public Connection getConnection(String username, String password) throws SQLException {
 		Properties properties = new Properties();
 		properties.put(TransactionalDriver.XADataSource, getTargetDataSource());
-		properties.put(TransactionalDriver.userName, username);
-		properties.put(TransactionalDriver.password, password);
+		if (username!=null) {
+			properties.put(TransactionalDriver.userName, username);
+		}
+		if (password!=null) {
+			properties.put(TransactionalDriver.password, password);
+		}
 		properties.setProperty(TransactionalDriver.poolConnections, ""+connectionPooling);
 		properties.setProperty(TransactionalDriver.maxConnections, ""+maxConnections);
 		return ConnectionManager.create(dbUrl, properties);
@@ -111,5 +113,16 @@ public class NarayanaDataSource implements DataSource {
 			return (T) this;
 		}
 		return ((Wrapper)targetDataSource).unwrap(iface);
+	}
+
+	public String toString() {
+		Set<?> connections=null;
+		try {
+			connections = (Set)ClassUtils.getDeclaredFieldValue(null, ConnectionManager.class,"_connections");
+		} catch (IllegalArgumentException | SecurityException | IllegalAccessException | NoSuchFieldException e) {
+			log.warn("could not obtain connectionPool size", e);
+		}
+		int connectionPoolSize = connections!=null ? connections.size() : -1;
+		return "NarayanaDataSource with connection pool size "+connectionPoolSize;
 	}
 }

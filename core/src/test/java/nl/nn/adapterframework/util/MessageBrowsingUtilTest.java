@@ -1,10 +1,10 @@
 package nl.nn.adapterframework.util;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.util.Map;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.springframework.beans.BeansException;
 import org.springframework.context.ApplicationContext;
 
@@ -52,8 +52,8 @@ public class MessageBrowsingUtilTest {
 		assertEquals(contents, MessageBrowsingUtil.getMessageText(listenerMessage, new TestListener()));
 	}
 
-	@Test
-	public void testGetMessageTextWithByteArray() throws Exception {
+	@Test //This is a strange test the causes a ClassCastException when converting a byte[] to TestListenerMessage.
+	public void testByteArrayMessageThatIsNotCompatibleWithTheListenerType() throws Exception {
 		String contents = "fakeMessage";
 		byte[] bytes = contents.getBytes();
 

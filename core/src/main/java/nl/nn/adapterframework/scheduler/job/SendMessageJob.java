@@ -23,7 +23,6 @@ import nl.nn.adapterframework.configuration.ConfigurationWarning;
 import nl.nn.adapterframework.core.PipeLineSession;
 import nl.nn.adapterframework.core.SenderException;
 import nl.nn.adapterframework.core.TimeoutException;
-import nl.nn.adapterframework.doc.IbisDoc;
 import nl.nn.adapterframework.scheduler.JobDef;
 import nl.nn.adapterframework.senders.IbisLocalSender;
 import nl.nn.adapterframework.stream.Message;
@@ -61,8 +60,9 @@ public class SendMessageJob extends JobDef {
 			//sendMessage message cannot be NULL
 			Message message = new Message((getMessage()==null) ? "" : getMessage());
 			PipeLineSession session = new PipeLineSession();
-			session.put(PipeLineSession.messageIdKey, Misc.createSimpleUUID()); //Create a dummy messageId so the localSender uses it as correlationId for the calling adapter.
-			localSender.sendMessage(message, session);
+			//Set a messageId that will be forwarded by the localSender to the called adapter. Adapter and job will then share a Ladybug report.
+			session.put(PipeLineSession.correlationIdKey, Misc.createSimpleUUID());
+			localSender.sendMessageOrThrow(message, session);
 		}
 		catch (SenderException e) {
 			throw new JobExecutionException("unable to send message to javaListener ["+javaListener+"]", e);
@@ -90,7 +90,7 @@ public class SendMessageJob extends JobDef {
 		setJavaListener(receiverName); //For backwards compatibility
 	}
 
-	@IbisDoc({"message to be send into the pipeline", ""})
+	/** message to be send into the pipeline */
 	public void setMessage(String message) {
 		if(StringUtils.isNotEmpty(message)) {
 			this.message = message;

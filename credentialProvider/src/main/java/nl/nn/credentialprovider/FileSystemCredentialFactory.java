@@ -20,17 +20,19 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import nl.nn.credentialprovider.util.AppConstants;
 import nl.nn.credentialprovider.util.Misc;
 
 public class FileSystemCredentialFactory implements ICredentialFactory {
 
-	public final String FILESYSTEM_ROOT_PROPERTY="credentialFactory.filesystem.root";
-	public final String USERNAME_FILE_PROPERTY="credentialFactory.filesystem.usernamefile";
-	public final String PASSWORD_FILE_PROPERTY="credentialFactory.filesystem.passwordfile";
+	public static final String FILESYSTEM_ROOT_PROPERTY="credentialFactory.filesystem.root";
+	public static final String USERNAME_FILE_PROPERTY="credentialFactory.filesystem.usernamefile";
+	public static final String PASSWORD_FILE_PROPERTY="credentialFactory.filesystem.passwordfile";
 
-	public final String FILESYSTEM_ROOT_DEFAULT="/etc/secrets";
+	public static final String FILESYSTEM_ROOT_DEFAULT="/etc/secrets";
 	public static final String USERNAME_FILE_DEFAULT="username";
 	public static final String PASSWORD_FILE_DEFAULT="password";
 
@@ -61,14 +63,16 @@ public class FileSystemCredentialFactory implements ICredentialFactory {
 	}
 
 	@Override
-	public ICredentials getCredentials(String alias, String defaultUsername, String defaultPassword) {
-		return new FileSystemCredentials(alias, defaultUsername, defaultPassword, usernamefile, passwordfile, root);
+	public ICredentials getCredentials(String alias, Supplier<String> defaultUsernameSupplier, Supplier<String> defaultPasswordSupplier) {
+		return new FileSystemCredentials(alias, defaultUsernameSupplier, defaultPasswordSupplier, usernamefile, passwordfile, root);
 	}
 
 	@Override
 	public List<String> getConfiguredAliases() throws Exception{
 		List<String> aliases = new LinkedList<>();
-		Files.list(Paths.get(root.toString())).forEach(p->aliases.add(p.getFileName().toString()));
+		try(Stream<Path> stream = Files.list(Paths.get(root.toString()))) {
+			stream.forEach(p->aliases.add(p.getFileName().toString()));
+		}
 		return aliases;
 	}
 }

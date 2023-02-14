@@ -1,17 +1,17 @@
 /*
-Copyright 2021-2022 WeAreFrank!
+   Copyright 2021-2023 WeAreFrank!
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+       http://www.apache.org/licenses/LICENSE-2.0
 
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
 */
 package nl.nn.adapterframework.util;
 
@@ -21,12 +21,12 @@ import java.util.Date;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 
+import lombok.Getter;
 import nl.nn.adapterframework.core.IListener;
 import nl.nn.adapterframework.core.IMessageBrowser;
 import nl.nn.adapterframework.core.IMessageBrowser.SortOrder;
 import nl.nn.adapterframework.core.IMessageBrowsingIteratorItem;
 import nl.nn.adapterframework.core.ListenerException;
-import nl.nn.adapterframework.webcontrol.api.ApiException;
 
 public class MessageBrowsingFilter {
 	private String type = null;
@@ -37,18 +37,18 @@ public class MessageBrowsingFilter {
 	private String comment = null;
 	private String message = null;
 	private String label = null;
-	private Date startDate = null;
-	private Date endDate = null;
+	private @Getter Date startDate = null;
+	private @Getter Date endDate = null;
 
-	private int maxMessages = 0;
-	private int skipMessages = 0;
+	private @Getter int maxMessages = 100;
+	private @Getter int skipMessages = 0;
 
-	private SortOrder sortOrder = SortOrder.NONE;
+	private @Getter SortOrder sortOrder = SortOrder.NONE;
 	private IMessageBrowser<?> storage = null;
 	private IListener listener = null;
 
 	public MessageBrowsingFilter() {
-		this(AppConstants.getInstance().getInt("browse.messages.max", 0), 0);
+		this(AppConstants.getInstance().getInt("browse.messages.max", 100), 0);
 	}
 
 	public MessageBrowsingFilter(int maxMessages, int skipMessages) {
@@ -56,12 +56,6 @@ public class MessageBrowsingFilter {
 		this.skipMessages = skipMessages;
 	}
 
-	public void setSortOrder(SortOrder order) {
-		sortOrder = order;
-	}
-	public SortOrder getSortOrder() {
-		return sortOrder;
-	}
 
 	public boolean matchAny(IMessageBrowsingIteratorItem iterItem) throws ListenerException, IOException {
 		int count = 0;
@@ -181,11 +175,9 @@ public class MessageBrowsingFilter {
 		if(!StringUtils.isEmpty(startDateMask)) {
 			try {
 				startDate = DateUtils.parseAnyDate(startDateMask);
-				if(startDate == null)
-					throw new ApiException("could not to parse date from ["+startDateMask+"]");
 			}
 			catch(CalendarParserException ex) {
-				throw new ApiException("could not parse date from ["+startDateMask+"] msg["+ex.getMessage()+"]");
+				throw new IllegalStateException("could not parse date from ["+startDateMask+"]", ex);
 			}
 		}
 	}
@@ -194,21 +186,17 @@ public class MessageBrowsingFilter {
 		if(!StringUtils.isEmpty(endDateMask)) {
 			try {
 				endDate = DateUtils.parseAnyDate(endDateMask);
-				if(endDate == null)
-					throw new ApiException("could not to parse date from ["+endDateMask+"]");
 			}
 			catch(CalendarParserException ex) {
-				throw new ApiException("could not parse date from ["+endDateMask+"] msg["+ex.getMessage()+"]");
+				throw new IllegalStateException("could not parse date from ["+endDateMask+"]", ex);
 			}
 		}
 	}
 
-	public int skipMessages() {
-		return skipMessages;
-	}
-
-	public int maxMessages() {
-		return maxMessages;
+	public void setSortOrder(SortOrder sortOrder) {
+		if(sortOrder != null) {
+			this.sortOrder = sortOrder;
+		}
 	}
 
 	@Override

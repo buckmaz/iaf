@@ -1,5 +1,5 @@
 /*
-   Copyright 2015 Nationale-Nederlanden
+   Copyright 2015 Nationale-Nederlanden, 2022 WeAreFrank!
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -25,7 +25,6 @@ import nl.nn.adapterframework.configuration.ConfigurationException;
 import nl.nn.adapterframework.core.IAdapter;
 import nl.nn.adapterframework.core.ListenerException;
 import nl.nn.adapterframework.core.PipeLineResult;
-import nl.nn.adapterframework.doc.IbisDoc;
 import nl.nn.adapterframework.extensions.esb.EsbJmsListener;
 import nl.nn.adapterframework.receivers.Receiver;
 import nl.nn.adapterframework.util.FileUtils;
@@ -33,19 +32,19 @@ import nl.nn.adapterframework.util.MessageKeeper.MessageKeeperLevel;
 
 /**
  * FxF extension of EsbJmsListener.
- * 
+ *
  * <p><b>Configuration </b><i>(where deviating from EsbJmsListener)</i><b>:</b>
  * <table border="1">
  * <tr><th>attributes</th><th>description</th><th>default</th></tr>
  * <tr><td>{@link #setDestinationName(String) destinationName}</td><td>name of the JMS destination (queue or topic) to use</td><td>"jms/FileTransferAction"</td></tr>
  * <tr><td>{@link #setJmsRealm(String) jmsRealm}</td><td>&nbsp;</td><td>"qcf_tibco_p2p_ff"</td></tr>
- * <tr><td>{@link #setMessageProtocol(String) messageProtocol}</td><td>protocol of ESB service to be called. Possible values 
+ * <tr><td>{@link #setMessageProtocol(MessageProtocol) messageProtocol}</td><td>protocol of ESB service to be called. Possible values
  * <ul>
  *   <li>"FF": Fire & Forget protocol</li>
  *   <li>"RR": Request-Reply protocol</li>
  * </ul></td><td>"FF"</td></tr>
  * </table></p>
- * 
+ *
  * @author Peter Leeuwenburgh
  */
 public class FxfListener extends EsbJmsListener {
@@ -59,8 +58,8 @@ public class FxfListener extends EsbJmsListener {
 		if (StringUtils.isEmpty(getJmsRealmName())) {
 			setJmsRealm("qcf_tibco_p2p_ff");
 		}
-		if (StringUtils.isEmpty(getMessageProtocol())) {
-			setMessageProtocol("FF");
+		if (getMessageProtocol()==null) {
+			setMessageProtocol(MessageProtocol.FF);
 		}
 		if (StringUtils.isEmpty(getDestinationName())) {
 			setDestinationName("jms/FileTransferAction");
@@ -73,7 +72,7 @@ public class FxfListener extends EsbJmsListener {
 		super.afterMessageProcessed(plr, rawMessageOrWrapper, threadContext);
 
 		//TODO plr.getState() may return null when there is an error.
-		// The message will be placed in the errorstore due to this, 
+		// The message will be placed in the errorstore due to this,
 		// when solving the NPE this no longer happens
 		if (isMoveProcessedFile() && plr.isSuccessful()) {
 			File srcFile = null;
@@ -130,22 +129,34 @@ public class FxfListener extends EsbJmsListener {
 		}
 	}
 
-	@IbisDoc({"1", "name of the session key to store the name of the received file in", "fxfFile"})
+	/**
+	 * name of the session key to store the name of the received file in
+	 * @ff.default fxfFile
+	 */
 	public void setFxfFileSessionKey(String fxfFileSessionKey) {
 		this.fxfFileSessionKey = fxfFileSessionKey;
 	}
 
-	@IbisDoc({"2", "If set to <code>true</code>, the received file is moved after being processed", "true"})
+	/**
+	 * If set to <code>true</code>, the received file is moved after being processed
+	 * @ff.default true
+	 */
 	public void setMoveProcessedFile(boolean b) {
 		moveProcessedFile = b;
 	}
 
-	@IbisDoc({"3", "(only used when <code>moveProcessedFile=true</code>) <b>sibling</b> directory (related to the parent directory of the file to process) where files are stored after being processed", "processed"})
+	/**
+	 * (only used when <code>moveProcessedFile=true</code>) <b>sibling</b> directory (related to the parent directory of the file to process) where files are stored after being processed
+	 * @ff.default processed
+	 */
 	public void setProcessedSiblingDirectory(String processedSiblingDirectory) {
 		this.processedSiblingDirectory = processedSiblingDirectory;
 	}
 
-	@IbisDoc({"4", "(only used when <code>moveProcessedFile=true</code>) when set to <code>true</code>, the directory to move processed files in is created if it does not exist", "false"})
+	/**
+	 * (only used when <code>moveProcessedFile=true</code>) when set to <code>true</code>, the directory to move processed files in is created if it does not exist
+	 * @ff.default false
+	 */
 	public void setCreateProcessedDirectory(boolean b) {
 		createProcessedDirectory = b;
 	}

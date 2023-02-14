@@ -1,5 +1,5 @@
 /*
-   Copyright 2013 Nationale-Nederlanden, 2020 WeAreFrank!
+   Copyright 2013 Nationale-Nederlanden, 2020, 2022 WeAreFrank!
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@ package nl.nn.adapterframework.core;
 
 import java.util.Date;
 
-import nl.nn.adapterframework.doc.IbisDoc;
 
 
 /**
@@ -45,6 +44,13 @@ public interface IMessageBrowser<M> extends IXAEnabled {
 		public String getCode() {
 			return code;
 		}
+	}
+
+	public enum HideMethod {
+		/** to mask the entire string */
+		ALL,
+		/** to only mask the first half of the string */
+		FIRSTHALF
 	}
 
 	/**
@@ -76,13 +82,16 @@ public interface IMessageBrowser<M> extends IXAEnabled {
 	public void deleteMessage(String storageKey) throws ListenerException;
 	public int getMessageCount() throws ListenerException; // may return -1 when the count cannot be determined
 
-	@IbisDoc({"Regular expression to mask strings in the errorStore/logStore. Every character between to the strings in this expression will be replaced by a '*'. For example, the regular expression (?&lt;=&lt;party&gt;).*?(?=&lt;/party&gt;) will replace every character between keys &lt;party&gt; and &lt;/party&gt;", ""})
+	/** Regular expression to mask strings in the errorStore/logStore. Every character between to the strings in this expression will be replaced by a '*'. For example, the regular expression (?&lt;=&lt;party&gt;).*?(?=&lt;/party&gt;) will replace every character between keys &lt;party&gt; and &lt;/party&gt; */
 	public void setHideRegex(String hideRegex);
 	public String getHideRegex();
 
-	@IbisDoc({"(Only used when hideRegex is not empty) either <code>all</code> or <code>firstHalf</code>. When <code>firstHalf</code> only the first half of the string is masked, otherwise (<code>all</code>) the entire string is masked", "all"})
-	public void setHideMethod(String hideMethod);
-	public String getHideMethod();
+	/**
+	 * (Only used when hideRegex is not empty) Specifies the way to hide
+	 * @ff.default ALL
+	 */
+	public void setHideMethod(HideMethod hideMethod);
+	public HideMethod getHideMethod();
 
 
 }

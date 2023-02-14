@@ -22,10 +22,11 @@ import com.sap.conn.jco.JCoFunction;
 
 import lombok.Getter;
 import nl.nn.adapterframework.configuration.ConfigurationException;
+import nl.nn.adapterframework.core.ISender;
 import nl.nn.adapterframework.core.PipeLineSession;
 import nl.nn.adapterframework.core.SenderException;
+import nl.nn.adapterframework.core.SenderResult;
 import nl.nn.adapterframework.core.TimeoutException;
-import nl.nn.adapterframework.doc.IbisDoc;
 import nl.nn.adapterframework.extensions.sap.ISapSender;
 import nl.nn.adapterframework.extensions.sap.SapException;
 import nl.nn.adapterframework.parameters.ParameterValue;
@@ -33,7 +34,7 @@ import nl.nn.adapterframework.parameters.ParameterValueList;
 import nl.nn.adapterframework.stream.Message;
 
 /**
- * Implementation of {@link nl.nn.adapterframework.core.ISender sender} that calls a SAP RFC-function.
+ * Implementation of {@link ISender sender} that calls a SAP RFC-function.
  *
  * N.B. If no requestFieldIndex or requestFieldName is specified, input is converted from xml;
  * If no replyFieldIndex or replyFieldName is specified, output is converted to xml.
@@ -82,7 +83,7 @@ public abstract class SapSenderImpl extends SapSenderBase implements ISapSender 
 			if (pvl==null) {
 				throw new SapException("no parameters to determine functionName from");
 			}
-			ParameterValue pv = pvl.getParameterValue(getFunctionNameParam());
+			ParameterValue pv = pvl.get(getFunctionNameParam());
 			if (pv==null) {
 				throw new SapException("could not get ParameterValue for parameter ["+getFunctionNameParam()+"]");
 			}
@@ -95,7 +96,7 @@ public abstract class SapSenderImpl extends SapSenderBase implements ISapSender 
 	}
 
 	@Override
-	public Message sendMessage(Message message, PipeLineSession session) throws SenderException, TimeoutException {
+	public SenderResult sendMessage(Message message, PipeLineSession session) throws SenderException, TimeoutException {
 		String tid=null;
 		try {
 			ParameterValueList pvl = null;
@@ -112,7 +113,7 @@ public abstract class SapSenderImpl extends SapSenderBase implements ISapSender 
 			if (StringUtils.isEmpty(getFunctionName())) {
 				pvl.remove(getFunctionNameParam());
 			}
-			String correlationID = session==null ? null : session.getMessageId();
+			String correlationID = session==null ? null : session.getCorrelationId();
 			message2FunctionCall(function, message.asString(), correlationID, pvl);
 			if (log.isDebugEnabled()) log.debug(getLogPrefix()+" function call ["+functionCall2message(function)+"]");
 
@@ -125,9 +126,9 @@ public abstract class SapSenderImpl extends SapSenderBase implements ISapSender 
 			}
 
 			if (isSynchronous()) {
-				return functionResult2message(function);
+				return new SenderResult(functionResult2message(function));
 			}
-			return new Message(tid);
+			return new SenderResult(tid);
 		} catch (Exception e) {
 			throw new SenderException(e);
 		}
@@ -139,14 +140,17 @@ public abstract class SapSenderImpl extends SapSenderBase implements ISapSender 
 	}
 
 
-	@IbisDoc({"1", "Name of the RFC-function to be called in the SAP system", ""})
+	/** Name of the RFC-function to be called in the SAP system */
 	@Override
 	public void setFunctionName(String string) {
 		functionName = string;
 	}
 
 
-	@IbisDoc({"2", "name of the parameter used to obtain the functionName from if the attribute <code>functionName</code> is empty", "functionName"})
+	/**
+	 * Name of the parameter used to obtain the functionName from if the attribute <code>functionName</code> is empty
+	 * @ff.default functionName
+	 */
 	@Override
 	public void setFunctionNameParam(String string) {
 		functionNameParam = string;

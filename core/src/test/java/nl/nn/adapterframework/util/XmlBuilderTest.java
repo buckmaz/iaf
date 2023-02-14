@@ -1,12 +1,12 @@
 package nl.nn.adapterframework.util;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.io.IOException;
 
 import org.custommonkey.xmlunit.XMLUnit;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 import nl.nn.adapterframework.testutil.MatchUtils;
 
@@ -15,7 +15,7 @@ public class XmlBuilderTest {
 	//private final String JAVA_ESCAPED_UNICODE_CHARACTERS = "\u0010 a\u00E2\u0394\u0639\u4F60\u597D\u0CA1\u0CA4";
 	private final String XML_RENDERED_UNICODE_CHARACTERS = "¿#16; aâΔع你好ಡತ";
 
-	@Before
+	@BeforeEach
 	public void initXMLUnit() throws IOException {
 		XMLUnit.setIgnoreWhitespace(true);
 		XMLUnit.setIgnoreDiffBetweenTextAndCDATA(true);
@@ -217,4 +217,12 @@ public class XmlBuilderTest {
 		MatchUtils.assertXmlEquals(expected, root.toXML());
 	}
 
+	@Test
+	public void testAttributeNormalization() {
+		XmlBuilder root = new XmlBuilder("root");
+		root.addAttribute("attr1", "a b  c\td\re\nf\r\n\t\ng");
+		String expected = "<root attr1=\"a b  c d e f   g\" />";
+
+		MatchUtils.assertXmlEquals(expected, root.toXML());
+	}
 }

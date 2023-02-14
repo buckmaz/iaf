@@ -1,5 +1,5 @@
 /*
-   Copyright 2021 WeAreFrank!
+   Copyright 2021, 2022 WeAreFrank!
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -22,7 +22,6 @@ import nl.nn.adapterframework.configuration.ConfigurationException;
 import nl.nn.adapterframework.configuration.ConfigurationWarning;
 import nl.nn.adapterframework.core.SenderException;
 import nl.nn.adapterframework.core.TimeoutException;
-import nl.nn.adapterframework.doc.IbisDoc;
 import nl.nn.adapterframework.jdbc.FixedQuerySender;
 import nl.nn.adapterframework.jndi.JndiDataSourceFactory;
 import nl.nn.adapterframework.scheduler.JobDef;
@@ -57,7 +56,7 @@ public class ExecuteQueryJob extends JobDef {
 	public void execute() throws JobExecutionException, TimeoutException {
 		try {
 			qs.open();
-			Message result = qs.sendMessage(Message.nullMessage(), null);
+			Message result = qs.sendMessageOrThrow(Message.nullMessage(), null);
 			log.info("result [" + result + "]");
 		}
 		catch (SenderException e) {
@@ -81,12 +80,18 @@ public class ExecuteQueryJob extends JobDef {
 		this.jmsRealm = jmsRealm;
 	}
 
-	@IbisDoc({"JNDI name of datasource to be used", "${"+JndiDataSourceFactory.DEFAULT_DATASOURCE_NAME_PROPERTY+"}"})
+	/**
+	 * JNDI name of datasource to be used
+	 * @ff.default {@value JndiDataSourceFactory#DEFAULT_DATASOURCE_NAME_PROPERTY}
+	 */
 	public void setDatasourceName(String datasourceName) {
 		this.datasourceName = datasourceName;
 	}
 
-	@IbisDoc({"The number of seconds the database driver will wait for a statement to execute. If the limit is exceeded, a TimeoutException is thrown. 0 means no timeout", "0"})
+	/**
+	 * The number of seconds the database driver will wait for a statement to execute. If the limit is exceeded, a TimeoutException is thrown. 0 means no timeout
+	 * @ff.default 0
+	 */
 	public void setQueryTimeout(int i) {
 		queryTimeout = i;
 	}

@@ -28,7 +28,7 @@ import nl.nn.adapterframework.xml.SaxElementBuilder;
  *
  * creates a number of fs_test... folders
  */
-public abstract class MailFileSystemTestBase<M,A,FS> extends SelfContainedBasicFileSystemTest<M, IMailFileSystem<M,A>>{
+public abstract class MailFileSystemTestBase<M,A,FS extends IMailFileSystem<M, A>> extends SelfContainedBasicFileSystemTest<M, FS>{
 
 	protected String PROPERTY_FILE = "ExchangeMail.properties";
 
@@ -186,6 +186,15 @@ public abstract class MailFileSystemTestBase<M,A,FS> extends SelfContainedBasicF
 		MatchUtils.assertXmlEquals(expected,xml.toString());
 	}
 
+	@Test
+	public void testExtractMessageWithProblematicAttachement() throws Exception {
+		M emailMessage = getFirstFileFromFolder("AttachmentProblem");
+		SaxElementBuilder xml = new SaxElementBuilder("email");
+		fileSystem.extractEmail(emailMessage, xml);
+		xml.close();
+		String expected = TestFileUtils.getTestFile("/ExchangeMailAttachmentProblem.xml");
+		MatchUtils.assertXmlEquals(expected,xml.toString());
+	}
 
 //	@Test
 //	public void testExtractMessageWithProblematicAddress2() throws Exception {

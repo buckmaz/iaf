@@ -1,9 +1,11 @@
 package nl.nn.adapterframework.util;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertTrue;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
@@ -22,17 +24,20 @@ import java.io.StringWriter;
 import java.io.Writer;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.hamcrest.Matchers;
 import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.ClassRule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
+import nl.nn.adapterframework.core.IMessageBrowser.HideMethod;
 import nl.nn.adapterframework.core.PipeLineSession;
 import nl.nn.adapterframework.testutil.TestAssertions;
 import nl.nn.adapterframework.testutil.TestFileUtils;
@@ -44,25 +49,28 @@ import nl.nn.adapterframework.testutil.TestFileUtils;
  */
 public class MiscTest {
 
-	@ClassRule
-	public static TemporaryFolder testFolder = new TemporaryFolder();
+	@TempDir
+	public static Path testFolder;
 	private static String sourceFolderPath;
 
-	private static File file;
+	private static Path file;
 
-	@BeforeClass
+	@BeforeAll
 	public static void setUp() throws IOException {
-		sourceFolderPath = testFolder.getRoot().getPath();
-		file = testFolder.newFile("lebron.txt");
-		Writer w = new FileWriter(file.getName());
-		w.write("inside the lebron file");
-		w.close();
+		sourceFolderPath = testFolder.toString();
+		file = Files.createFile(testFolder.resolve("lebron.txt"));
 	}
 
 	@AfterClass
 	public static void cleanUp() {
 		File f = new File("lebron.txt");
 		f.delete();
+	}
+
+	private void writeToTestFile() throws IOException {
+		Writer w = new FileWriter(file.toString());
+		w.write("inside the lebron file");
+		w.close();
 	}
 
 	@Test
@@ -74,7 +82,7 @@ public class MiscTest {
 		String actual = Misc.streamToString(closeChecker);
 
 		assertEquals(tekst, actual);
-		assertTrue("inputstream was not closed", closeChecker.inputStreamClosed);
+		assertTrue(closeChecker.inputStreamClosed, "inputstream was not closed");
 	}
 
 	private class CloseChecker extends FilterInputStream {
@@ -151,22 +159,13 @@ public class MiscTest {
 	}
 
 	/**
-	 * Method: fileToWriter(String filename, Writer writer)
-	 */
-	@Test
-	public void testFileToWriter() throws Exception {
-		Writer writer = new StringWriter();
-		Misc.fileToWriter(file.getName(), writer);
-		assertEquals("inside the lebron file", writer.toString());
-	}
-
-	/**
 	 * Method: fileToStream(String filename, OutputStream output)
 	 */
 	@Test
 	public void testFileToStream() throws Exception {
+		writeToTestFile();
 		OutputStream os = new ByteArrayOutputStream();
-		Misc.fileToStream(file.getName(), os);
+		Misc.fileToStream(file.toString(), os);
 		assertEquals("inside the lebron file", os.toString());
 	}
 
@@ -202,10 +201,10 @@ public class MiscTest {
 	public void testStreamToFile() throws Exception {
 		String test = "test";
 		ByteArrayInputStream bais = new ByteArrayInputStream(test.getBytes());
-		Misc.streamToFile(bais, file);
+		Misc.streamToFile(bais, file.toFile());
 
 		// to read from the file
-		InputStream is = new FileInputStream(file);
+		InputStream is = new FileInputStream(file.toString());
 		BufferedReader buf = new BufferedReader(new InputStreamReader(is));
 
 		String line = buf.readLine();
@@ -246,7 +245,8 @@ public class MiscTest {
 	@Test
 	public void testFileToStringFileNameEndLine() throws Exception {
 		// Misc.resourceToString()
-		assertEquals("inside the lebron file", Misc.fileToString(file.getName(), " the end"));
+		writeToTestFile();
+		assertEquals("inside the lebron file", Misc.fileToString(file.toString(), " the end"));
 	}
 
 	/**
@@ -411,9 +411,39 @@ public class MiscTest {
 		from.put("a", 15);
 		from.put("b", 16);
 		Misc.copyContext(keys, from, to, null);
-		assertTrue(from.equals(to));
+		assertEquals(from,to);
 	}
 
+	@Test
+	public void testCopyContextNullKeys() throws Exception {
+		Map<String, Object> from = new HashMap<>();
+		PipeLineSession to = new PipeLineSession();
+		from.put("a", 15);
+		from.put("b", 16);
+		Misc.copyContext(null, from, to, null);
+		assertEquals(from,to);
+	}
+
+	@Test
+	public void testCopyContextLimitedKeys() throws Exception {
+		Map<String, Object> from = new HashMap<>();
+		PipeLineSession to = new PipeLineSession();
+		String keys = "a";
+		from.put("a", 15);
+		from.put("b", 16);
+		Misc.copyContext(keys, from, to, null);
+		assertEquals(1,to.size());
+	}
+
+	@Test
+	public void testCopyContextEmptyKeys() throws Exception {
+		Map<String, Object> from = new HashMap<>();
+		PipeLineSession to = new PipeLineSession();
+		from.put("a", 15);
+		from.put("b", 16);
+		Misc.copyContext("", from, to, null);
+		assertEquals(0,to.size());
+	}
 	/**
 	 * Method: toFileSize(String value, long defaultValue)
 	 */
@@ -530,7 +560,7 @@ public class MiscTest {
 	public void testCleanseMessage() throws Exception {
 		String s = "Donald Duck 23  Hey hey  14  Wooo";
 		String regex = "\\d";
-		String res = Misc.cleanseMessage(s, regex, " does not matter");
+		String res = Misc.cleanseMessage(s, regex, HideMethod.ALL);
 		assertEquals("Donald Duck **  Hey hey  **  Wooo", res);
 	}
 
@@ -656,4 +686,21 @@ public class MiscTest {
 		assertEquals(expected, Misc.insertAuthorityInUrlString(url, null, username, password));
 	}
 
+	@Test
+	public void testIbmDescriptorResources() throws Exception {
+		String descriptorPath = Misc.getApplicationDeploymentDescriptorPath();
+		assertThat(descriptorPath, Matchers.endsWith("META-INF"));
+		String applBindings = Misc.getDeployedApplicationBindings();
+		assertNotNull(applBindings);
+		String deploymentDescriptor = Misc.getApplicationDeploymentDescriptor();
+		assertNotNull(deploymentDescriptor);
+	}
+
+	@Test
+	public void testIbmConfigurationResources() throws Exception {
+		String configurationResources = Misc.getConfigurationResources();
+		assertThat(configurationResources, Matchers.startsWith("<dummy xml=\"file\" />"));
+		String server = Misc.getConfigurationServer();
+		assertThat(server, Matchers.startsWith("<?xml version=\"1.0\" encoding=\"UTF-8\"?>"));
+	}
 }

@@ -1,20 +1,21 @@
 package nl.nn.adapterframework.util;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.Calendar;
 import java.util.Date;
 import java.util.TimeZone;
 
 import org.apache.logging.log4j.Logger;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 
 /**
  * DateUtils Tester.
  * The assertions are in the form of testing the date in most cases, not the time
- * because of the time difference between the EU and US where Travis servers are located.
+ * because of the time difference between timezones that might occur.
  * 
  * @author Ricardo
  */
@@ -24,7 +25,7 @@ public class DateUtilsTest {
 	private static final TimeZone TEST_TZ = TimeZone.getTimeZone("UTC");
 	private static Logger LOG = LogUtil.getLogger(DateUtilsTest.class);
 
-	@BeforeClass
+	@BeforeAll
 	public static void setUp() {
 		if(!CI_TZ.hasSameRules(TEST_TZ)) {
 			LOG.warn("CI TimeZone [{}] differs from test TimeZone [{}]", CI_TZ::getDisplayName, TEST_TZ::getDisplayName);
@@ -111,9 +112,9 @@ public class DateUtilsTest {
 		assertEquals(getCorrectedDate(1386679303000L), date.getTime());
 	}
 
-	@Test(expected = IllegalArgumentException.class)
+	@Test
 	public void testParseXmlInvalidDateTime() throws Exception {
-		DateUtils.parseXmlDateTime("2013-12-10 12:41:43");
+		assertThrows(IllegalArgumentException.class, ()-> DateUtils.parseXmlDateTime("2013-12-10 12:41:43"));
 	}
 
 	@Test

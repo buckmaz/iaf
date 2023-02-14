@@ -38,7 +38,6 @@ import nl.nn.adapterframework.core.PipeForward;
 import nl.nn.adapterframework.core.PipeLineSession;
 import nl.nn.adapterframework.core.PipeRunException;
 import nl.nn.adapterframework.core.PipeRunResult;
-import nl.nn.adapterframework.doc.IbisDoc;
 import nl.nn.adapterframework.errormessageformatters.ErrorMessageFormatter;
 import nl.nn.adapterframework.stream.Message;
 import nl.nn.adapterframework.stream.MessageOutputStream;
@@ -48,7 +47,7 @@ import nl.nn.adapterframework.util.StreamUtil;
 
 /**
  * Pipe to zip or unzip a message or file.
- * 
+ *
  * @author John Dekker
  * @author Jaco de Groot (***@dynasol.nl)
  */
@@ -64,10 +63,10 @@ public class CompressPipe extends StreamingPipe {
 	private @Getter FileFormat fileFormat;
 
 	public enum FileFormat {
-		/** Gzip format; also used when direction is compress and resultIsContent=<code>true</code> 
+		/** Gzip format; also used when direction is compress and resultIsContent=<code>true</code>
 		 * or when direction is decompress and messageIsContent=<code>true</code> */
 		GZ,
-		/** Zip format; also used when direction is compress and resultIsContent=<code>false</code> 
+		/** Zip format; also used when direction is compress and resultIsContent=<code>false</code>
 		 * or when direction is decompress and messageIsContent=<code>false</code> */
 		ZIP
 	}
@@ -126,10 +125,10 @@ public class CompressPipe extends StreamingPipe {
 		} catch(Exception e) {
 			PipeForward exceptionForward = findForward(PipeForward.EXCEPTION_FORWARD_NAME);
 			if (exceptionForward!=null) {
-				log.warn(getLogPrefix(session) + "exception occured, forwarded to ["+exceptionForward.getPath()+"]", e);
-				return new PipeRunResult(exceptionForward, new ErrorMessageFormatter().format(getLogPrefix(session),e,this,message,session.getMessageId(),0));
+				log.warn("exception occured, forwarded to ["+exceptionForward.getPath()+"]", e);
+				return new PipeRunResult(exceptionForward, new ErrorMessageFormatter().format(null,e,this,message,session.getMessageId(),0));
 			}
-			throw new PipeRunException(this, getLogPrefix(session) + "Unexpected exception during compression", e);
+			throw new PipeRunException(this, "Unexpected exception during compression", e);
 		}
 	}
 
@@ -154,7 +153,7 @@ public class CompressPipe extends StreamingPipe {
 				if (getFileFormat() == FileFormat.GZ || getFileFormat() == null && resultIsContent) {
 					out = new GZIPOutputStream(out);
 				} else {
-					ZipOutputStream zipper = new ZipOutputStream(out); 
+					ZipOutputStream zipper = new ZipOutputStream(out);
 					String zipEntryName = getZipEntryName(filename, session);
 					zipper.putNextEntry(new ZipEntry(zipEntryName));
 					out = zipper;
@@ -195,39 +194,51 @@ public class CompressPipe extends StreamingPipe {
 		return FileUtils.getFilename(getParameterList(), session, new File(input), zipEntryPattern);
 	}
 
-	@IbisDoc({"if <code>true</code> the pipe compresses, otherwise it decompress", "false"})
+	/**
+	 * if <code>true</code> the pipe compresses, otherwise it decompress
+	 * @ff.default false
+	 */
 	public void setCompress(boolean b) {
 		compress = b;
 	}
 
-	@IbisDoc({"required if result is a file, the pattern for the result filename", ""})
+	/** required if result is a file, the pattern for the result filename. Can be set with variables e.g. {file}.{ext}.zip in this example the {file} and {ext} variables are resolved with sessionKeys with the same name */
 	public void setFilenamePattern(String string) {
 		filenamePattern = string;
 	}
 
-	@IbisDoc({"flag indicates whether the message is the content or the path to a file with the contents. for multiple files use ';' as delimiter", "false"})
+	/**
+	 * flag indicates whether the message is the content or the path to a file with the contents. for multiple files use ';' as delimiter
+	 * @ff.default false
+	 */
 	public void setMessageIsContent(boolean b) {
 		messageIsContent = b;
 	}
 
-	@IbisDoc({"required if result is a file, the directory in which to store the result file", ""})
+	/** required if result is a file, the directory in which to store the result file */
 	public void setOutputDirectory(String string) {
 		outputDirectory = string;
 	}
 
-	@IbisDoc({"flag indicates whether the result must be written to the message or to a file (filename = message)", "false"})
+	/**
+	 * flag indicates whether the result must be written to the message or to a file (filename = message)
+	 * @ff.default false
+	 */
 	public void setResultIsContent(boolean b) {
 		resultIsContent = b;
 	}
 
-	@IbisDoc({"the pattern for the zipentry name in case a zipfile is read or written", ""})
+	/** the pattern for the zipentry name in case a zipfile is read or written */
 	public void setZipEntryPattern(String string) {
 		zipEntryPattern = string;
 	}
 
 	@Deprecated
 	@ConfigurationWarning("It should not be necessary to specify convert2String. If you encounter a situation where it is, please report to Frank!Framework Core Team")
-	@IbisDoc({"if <code>true</code> result is returned as character data, otherwise as binary data", "false"})
+	/**
+	 * if <code>true</code> result is returned as character data, otherwise as binary data
+	 * @ff.default false
+	 */
 	public void setConvert2String(boolean b) {
 		convert2String = b;
 	}

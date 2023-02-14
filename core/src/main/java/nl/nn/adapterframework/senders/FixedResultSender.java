@@ -28,11 +28,12 @@ import nl.nn.adapterframework.configuration.ConfigurationWarning;
 import nl.nn.adapterframework.core.ParameterException;
 import nl.nn.adapterframework.core.PipeLineSession;
 import nl.nn.adapterframework.core.SenderException;
+import nl.nn.adapterframework.core.SenderResult;
 import nl.nn.adapterframework.core.TimeoutException;
 import nl.nn.adapterframework.doc.Category;
-import nl.nn.adapterframework.doc.IbisDoc;
 import nl.nn.adapterframework.parameters.ParameterValue;
 import nl.nn.adapterframework.parameters.ParameterValueList;
+import nl.nn.adapterframework.pipes.FixedResultPipe;
 import nl.nn.adapterframework.stream.Message;
 import nl.nn.adapterframework.util.ClassUtils;
 import nl.nn.adapterframework.util.Misc;
@@ -40,10 +41,10 @@ import nl.nn.adapterframework.util.StringResolver;
 import nl.nn.adapterframework.util.TransformerPool;
 
 /**
- * FixedResultSender, same behaviour as {@link nl.nn.adapterframework.pipes.FixedResultPipe FixedResultPipe}, but now as a ISender.
- * 
+ * FixedResultSender, same behaviour as {@link FixedResultPipe}, but now as a ISender.
+ *
  * @ff.parameters Any parameters defined on the sender will be used for replacements. Each occurrence of <code>${name-of-parameter}</code> in the file fileName will be replaced by its corresponding value-of-parameter. This works only with files, not with values supplied in attribute {@link #setReturnString(String) returnString}.
- * 
+ *
  * @author  Gerrit van Brakel
  * @since   4.9
  */
@@ -74,15 +75,15 @@ public class FixedResultSender extends SenderWithParametersBase {
 			throw new ConfigurationException("Pipe [" + getName() + "] has neither fileName nor returnString specified");
 		}
 		if(StringUtils.isNotEmpty(getStyleSheetName())) {
-			transformerPool = TransformerPool.configureStyleSheetTransformer(getLogPrefix(), this, getStyleSheetName(), 0);
+			transformerPool = TransformerPool.configureStyleSheetTransformer(this, getStyleSheetName(), 0);
 		}
 		if (StringUtils.isNotEmpty(getReplaceFrom())) {
 			returnString = replace(returnString, replaceFrom, replaceTo );
 		}
 	}
- 
+
 	@Override
-	public Message sendMessage(Message message, PipeLineSession session) throws SenderException, TimeoutException {
+	public SenderResult sendMessage(Message message, PipeLineSession session) throws SenderException, TimeoutException {
 		String result=returnString;
 		if (paramList!=null) {
 			ParameterValueList pvl;
@@ -112,7 +113,7 @@ public class FixedResultSender extends SenderWithParametersBase {
 			}
 		}
 		log.debug("returning fixed result [" + result + "]");
-		return new Message(result);
+		return new SenderResult(result);
 	}
 
 	public static String replace (String target, String from, String to) {
@@ -140,7 +141,10 @@ public class FixedResultSender extends SenderWithParametersBase {
 		return true;
 	}
 
-	@IbisDoc({"should values between ${ and } be resolved from the pipelinesession", "false"})
+	/**
+	 * should values between ${ and } be resolved from the pipelinesession
+	 * @ff.default false
+	 */
 	public void setSubstituteVars(boolean substitute){
 		this.substituteVars=substitute;
 	}
@@ -151,18 +155,12 @@ public class FixedResultSender extends SenderWithParametersBase {
 		setFilename(fileName);
 	}
 
-	/**
-	 * Sets the name of the filename. The fileName should not be specified
-	 * as an absolute path, but as a resource in the classpath.
-	 *
-	 * @param filename the name of the file to return the contents from
-	 */
-	@IbisDoc({"name of the file containing the resultmessage", ""})
+	/** Name of the file containing the result message */
 	public void setFilename(String filename) {
 		this.filename = filename;
 	}
 
-	@IbisDoc({"returned message", ""})
+	/** returned message */
 	public void setReturnString(String returnString) {
 		this.returnString = returnString;
 	}

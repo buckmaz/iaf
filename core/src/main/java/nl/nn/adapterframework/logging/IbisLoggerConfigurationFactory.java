@@ -1,5 +1,5 @@
 /*
-   Copyright 2020 WeAreFrank!
+   Copyright 2020, 2022 WeAreFrank!
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -30,6 +30,8 @@ import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import javax.annotation.Nullable;
+
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.ThreadContext;
 import org.apache.logging.log4j.core.LoggerContext;
@@ -38,6 +40,7 @@ import org.apache.logging.log4j.core.config.ConfigurationFactory;
 import org.apache.logging.log4j.core.config.ConfigurationSource;
 import org.apache.logging.log4j.core.config.xml.XmlConfiguration;
 
+import nl.nn.adapterframework.util.StreamUtil;
 import nl.nn.adapterframework.util.StringResolver;
 
 /**
@@ -124,6 +127,7 @@ public class IbisLoggerConfigurationFactory extends ConfigurationFactory {
 	private Properties getProperties() throws IOException {
 		Properties log4jProperties = getProperties(LOG4J_PROPS_FILE);
 		if(log4jProperties == null) {
+			log4jProperties = new Properties();
 			System.out.println(LOG_PREFIX + "did not find " + LOG4J_PROPS_FILE + ", leaving it up to log4j's default initialization procedure");
 		}
 
@@ -133,19 +137,24 @@ public class IbisLoggerConfigurationFactory extends ConfigurationFactory {
 		}
 
 		log4jProperties.putAll(System.getProperties()); //Set these after reading DeploymentSpecifics as we want to override the properties
+		log4jProperties.putAll(System.getenv()); // let environment properties override system properties and appConstants
 		setInstanceNameLc(log4jProperties); //Set instance.name.lc for log file names
 
 		return log4jProperties;
 	}
-	private Properties getProperties(String filename) throws IOException {
+
+	private @Nullable Properties getProperties(String filename) throws IOException {
 		URL url = this.getClass().getClassLoader().getResource(filename);
 		if(url != null) {
 			Properties properties = new Properties();
-			properties.load(url.openStream());
+			try(InputStream is = url.openStream(); Reader reader = StreamUtil.getCharsetDetectingInputStreamReader(is)) {
+				properties.load(reader);
+			}
 			return properties;
 		}
 		return null;
 	}
+
 	private static void setInstanceNameLc(Properties log4jProperties) {
 		String instanceNameLowerCase = log4jProperties.getProperty("instance.name");
 		if (instanceNameLowerCase != null) {

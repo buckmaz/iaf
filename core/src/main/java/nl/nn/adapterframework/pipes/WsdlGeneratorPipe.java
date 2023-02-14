@@ -24,7 +24,8 @@ import nl.nn.adapterframework.core.Adapter;
 import nl.nn.adapterframework.core.PipeLineSession;
 import nl.nn.adapterframework.core.PipeRunException;
 import nl.nn.adapterframework.core.PipeRunResult;
-import nl.nn.adapterframework.doc.IbisDoc;
+import nl.nn.adapterframework.doc.ElementType;
+import nl.nn.adapterframework.doc.ElementType.ElementTypes;
 import nl.nn.adapterframework.http.RestListenerUtils;
 import nl.nn.adapterframework.soap.WsdlGenerator;
 import nl.nn.adapterframework.stream.Message;
@@ -36,6 +37,7 @@ import nl.nn.adapterframework.util.StreamUtil;
 
  * @author Jaco de Groot
  */
+@ElementType(ElementTypes.SESSION)
 public class WsdlGeneratorPipe extends FixedForwardPipe {
 	private String from = "parent";
 
@@ -81,7 +83,10 @@ public class WsdlGeneratorPipe extends FixedForwardPipe {
 		return from;
 	}
 
-	@IbisDoc({"either parent (adapter of pipeline which contains this pipe) or input (name of adapter specified by input of pipe), adapter must be within the same Configuration", "parent"})
+	/**
+	 * either parent (adapter of pipeline which contains this pipe) or input (name of adapter specified by input of pipe), adapter must be within the same Configuration
+	 * @ff.default parent
+	 */
 	public void setFrom(String from) {
 		this.from = from;
 	}

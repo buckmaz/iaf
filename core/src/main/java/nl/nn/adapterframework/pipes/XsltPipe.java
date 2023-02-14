@@ -29,9 +29,9 @@ import nl.nn.adapterframework.core.PipeRunResult;
 import nl.nn.adapterframework.core.PipeStartException;
 import nl.nn.adapterframework.core.SenderException;
 import nl.nn.adapterframework.doc.SupportsOutputStreaming;
+import nl.nn.adapterframework.doc.ElementType.ElementTypes;
 import nl.nn.adapterframework.doc.Category;
-import nl.nn.adapterframework.doc.IbisDoc;
-import nl.nn.adapterframework.doc.IbisDocRef;
+import nl.nn.adapterframework.doc.ElementType;
 import nl.nn.adapterframework.parameters.Parameter;
 import nl.nn.adapterframework.parameters.ParameterList;
 import nl.nn.adapterframework.senders.XsltSender;
@@ -52,6 +52,7 @@ import nl.nn.adapterframework.util.TransformerPool.OutputType;
  */
 @Category("Basic")
 @SupportsOutputStreaming
+@ElementType(ElementTypes.TRANSLATOR)
 public class XsltPipe extends StreamingPipe implements InitializingBean {
 
 	private String sessionKey=null;
@@ -99,7 +100,7 @@ public class XsltPipe extends StreamingPipe implements InitializingBean {
 		try {
 			sender.close();
 		} catch (SenderException e) {
-			log.warn(getLogPrefix(null)+"exception closing XsltSender",e);
+			log.warn("exception closing XsltSender",e);
 		}
 		super.stop();
 	}
@@ -118,7 +119,7 @@ public class XsltPipe extends StreamingPipe implements InitializingBean {
 	@Override
 	public PipeRunResult doPipe(Message input, PipeLineSession session) throws PipeRunException {
 		if (Message.isEmpty(input)) {
-			throw new PipeRunException(this, getLogPrefix(session)+"got null input");
+			throw new PipeRunException(this, "got null input");
 		}
 		try {
 			IForwardTarget nextPipe;
@@ -142,13 +143,21 @@ public class XsltPipe extends StreamingPipe implements InitializingBean {
 			}
 			return new PipeRunResult(forward, result);
 		} catch (Exception e) {
-			throw new PipeRunException(this, getLogPrefix(session) + " Exception on transforming input", e);
+			throw new PipeRunException(this, "Exception on transforming input", e);
 		}
 	}
 
 	@Override
 	public boolean supportsOutputStreamPassThrough() {
 		return false;
+	}
+
+	/**
+	 * If true, then this pipe will process the XSLT while streaming in a different thread. Can be used to switch streaming xslt off for debugging purposes
+	 * @ff.default set by appconstant xslt.streaming.default
+	 */
+	public void setStreamingXslt(boolean streamingActive) {
+		sender.setStreamingXslt(streamingActive);
 	}
 
 
@@ -167,24 +176,22 @@ public class XsltPipe extends StreamingPipe implements InitializingBean {
 		sender.addParameter(rhs);
 	}
 
-
-
-	@IbisDocRef({XSLTSENDER})
+	/** @ff.ref nl.nn.adapterframework.senders.XsltSender */
 	public void setStyleSheetName(String stylesheetName) {
 		sender.setStyleSheetName(stylesheetName);
 	}
 
-	@IbisDocRef({XSLTSENDER})
+	/** @ff.ref nl.nn.adapterframework.senders.XsltSender */
 	public void setStyleSheetNameSessionKey(String newSessionKey) {
 		sender.setStyleSheetNameSessionKey(newSessionKey);
 	}
 
-	@IbisDocRef({XSLTSENDER})
+	/** @ff.ref nl.nn.adapterframework.senders.XsltSender */
 	public void setStyleSheetCacheSize(int size) {
 		sender.setStyleSheetCacheSize(size);
 	}
 
-	@IbisDocRef({XSLTSENDER})
+	/** @ff.ref nl.nn.adapterframework.senders.XsltSender */
 	public void setXpathExpression(String string) {
 		sender.setXpathExpression(string);
 	}
@@ -192,17 +199,17 @@ public class XsltPipe extends StreamingPipe implements InitializingBean {
 		return sender.getXpathExpression();
 	}
 
-	@IbisDocRef({XSLTSENDER})
+	/** @ff.ref nl.nn.adapterframework.senders.XsltSender */
 	public void setOmitXmlDeclaration(boolean b) {
 		sender.setOmitXmlDeclaration(b);
 	}
 
-	@IbisDocRef({XSLTSENDER})
+	/** @ff.ref nl.nn.adapterframework.senders.XsltSender */
 	public void setDisableOutputEscaping(boolean b) {
 		sender.setDisableOutputEscaping(b);
 	}
 
-	@IbisDocRef({XSLTSENDER})
+	/** @ff.ref nl.nn.adapterframework.senders.XsltSender */
 	public void setNamespaceDefs(String namespaceDefs) {
 		sender.setNamespaceDefs(namespaceDefs);
 	}
@@ -210,36 +217,36 @@ public class XsltPipe extends StreamingPipe implements InitializingBean {
 		return sender.getNamespaceDefs();
 	}
 
-	@IbisDocRef({XSLTSENDER})
+	/** @ff.ref nl.nn.adapterframework.senders.XsltSender */
 	public void setOutputType(OutputType outputType) {
 		sender.setOutputType(outputType);
 	}
 
-	@IbisDocRef({XSLTSENDER})
+	/** @ff.ref nl.nn.adapterframework.senders.XsltSender */
 	public void setIndentXml(boolean b) {
 		sender.setIndentXml(b);
 	}
 
-	@IbisDocRef({XSLTSENDER})
+	/** @ff.ref nl.nn.adapterframework.senders.XsltSender */
 	public void setRemoveNamespaces(boolean b) {
 		sender.setRemoveNamespaces(b);
 	}
 
-	@IbisDocRef({XSLTSENDER})
+	/** @ff.ref nl.nn.adapterframework.senders.XsltSender */
 	public void setHandleLexicalEvents(boolean b) {
 		sender.setHandleLexicalEvents(b);
 	}
 
-	@IbisDocRef({XSLTSENDER})
+	/** @ff.ref nl.nn.adapterframework.senders.XsltSender */
 	public void setSkipEmptyTags(boolean b) {
 		sender.setSkipEmptyTags(b);
 	}
 
-	@IbisDocRef({XSLTSENDER})
+	/** @ff.ref nl.nn.adapterframework.senders.XsltSender */
 	public void setXsltVersion(int xsltVersion) {
 		sender.setXsltVersion(xsltVersion);
 	}
-	@IbisDocRef({XSLTSENDER})
+	/** @ff.ref nl.nn.adapterframework.senders.XsltSender */
 	/**
 	 * @deprecated Please remove setting of xslt2, it will be auto detected. Or use xsltVersion.
 	 */
@@ -249,7 +256,7 @@ public class XsltPipe extends StreamingPipe implements InitializingBean {
 		sender.setXslt2(b);
 	}
 
-	@IbisDocRef({XSLTSENDER})
+	/** @ff.ref nl.nn.adapterframework.senders.XsltSender */
 	@Deprecated
 	@ConfigurationWarning("please use attribute 'removeNamespaces' instead")
 	public void setNamespaceAware(boolean b) {
@@ -258,7 +265,7 @@ public class XsltPipe extends StreamingPipe implements InitializingBean {
 
 	@Deprecated
 	@ConfigurationWarning("Please use 'storeResultInSessionKey' with preserveInput=true")
-	@IbisDoc({"If set, then the XsltPipe stores it result in the session using the supplied sessionKey, and returns its input as result"})
+	/** If set, then the XsltPipe stores it result in the session using the supplied sessionKey, and returns its input as result */
 	public void setSessionKey(String newSessionKey) {
 		sessionKey = newSessionKey;
 	}

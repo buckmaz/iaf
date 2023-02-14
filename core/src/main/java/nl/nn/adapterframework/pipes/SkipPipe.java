@@ -18,7 +18,8 @@ package nl.nn.adapterframework.pipes;
 import nl.nn.adapterframework.core.PipeLineSession;
 import nl.nn.adapterframework.core.PipeRunException;
 import nl.nn.adapterframework.core.PipeRunResult;
-import nl.nn.adapterframework.doc.IbisDoc;
+import nl.nn.adapterframework.doc.ElementType;
+import nl.nn.adapterframework.doc.ElementType.ElementTypes;
 import nl.nn.adapterframework.stream.Message;
 
 /**
@@ -28,6 +29,7 @@ import nl.nn.adapterframework.stream.Message;
  * @author Jaco de Groot (***@dynasol.nl)
  *
  */
+@ElementType(ElementTypes.TRANSLATOR)
 public class SkipPipe extends FixedForwardPipe {
 
 	private int skip = 0;
@@ -75,14 +77,17 @@ public class SkipPipe extends FixedForwardPipe {
 	}
 
 	/**
-	 * Sets the number of bytes to skip
+	 * Number of bytes (for binary input) or characters (for character input) to skip. An empty byte array or string is returned when skip is larger then the length of the input
+	 * @ff.default 0
 	 */
-	@IbisDoc({"Number of bytes (for binary input) or characters (for character input) to skip. An empty byte array or string is returned when skip is larger then the length of the input", "0"})
 	public void setSkip(int skip) {
 		this.skip = skip;
 	}
 
-	@IbisDoc({"If length>=0 only these number of bytes (for binary input) or characters (for character input) is returned.", "-1"})
+	/**
+	 * If length>=0 only these number of bytes (for binary input) or characters (for character input) is returned.
+	 * @ff.default -1
+	 */
 	public void setLength(int length) {
 		this.length = length;
 	}

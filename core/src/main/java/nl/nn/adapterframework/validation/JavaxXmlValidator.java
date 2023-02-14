@@ -1,5 +1,5 @@
 /*
-   Copyright 2013, 2016, 2020 Nationale-Nederlanden. 2022 WeAreFrank!
+   Copyright 2013, 2016, 2020 Nationale-Nederlanden, 2022, 2023 WeAreFrank!
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -113,6 +113,7 @@ public class JavaxXmlValidator extends AbstractXmlValidator {
 
 			xsModels=new LinkedList<XSModel>();
 			Grammar[] grammars=xercesSchema.getGrammarPool().retrieveInitialGrammarSet(XMLGrammarDescription.XML_SCHEMA);
+			//namespaceSet.add(""); // allow empty namespace, to cover 'ElementFormDefault="Unqualified"'. N.B. beware, this will cause SoapValidator to miss validation failure of a non-namespaced SoapBody
 			for(int i=0;i<grammars.length;i++) {
 				XSModel model=((XSGrammar)grammars[i]).toXSModel();
 				xsModels.add(model);
@@ -166,7 +167,7 @@ public class JavaxXmlValidator extends AbstractXmlValidator {
 	protected List<Source> getSchemaSources(List<nl.nn.adapterframework.validation.Schema> schemas) throws IOException, XMLStreamException, ConfigurationException {
 		List<Source> result = new ArrayList<Source>();
 		for (nl.nn.adapterframework.validation.Schema schema : schemas) {
-			result.add(new StreamSource(schema.getInputStream(), schema.getSystemId()));
+			result.add(new StreamSource(schema.getReader(), schema.getSystemId()));
 		}
 		return result;
 	}
